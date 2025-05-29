@@ -10,6 +10,8 @@ import PosInterfacePage from './features/pos/PosInterfacePage';
 import ProductListPage from './features/products/ProductListPage';
 import CustomerListPage from './features/customers/CustomerListPage';
 import OrderListPage from './features/orders/OrderListPage';
+import UserListPage from './features/users/UserListPage';
+import InventoryPage from './features/inventory/InventoryPage';
 // import other pages as you implement them
 import { Role } from './common/enums/role.enum';
 
@@ -43,19 +45,16 @@ const AppRoutes: React.FC = () => {
               <ProductListPage />
           } />
 
-          {/* Add more protected routes here
-          <Route path="admin/categories" element={<ProtectedRoute allowedRoles={[Role.ADMIN, Role.MANAGER]}><CategoryListPage /></ProtectedRoute>} />
-          <Route path="admin/inventory" element={<ProtectedRoute allowedRoles={[Role.ADMIN, Role.MANAGER]}><InventoryPage /></ProtectedRoute>} />
-          */}
+         
+          {/* <Route path="admin/categories" element={<ProtectedRoute allowedRoles={[Role.ADMIN, Role.MANAGER]}><CategoryListPage /></ProtectedRoute>} /> */}
+          <Route path="admin/inventory" element={<InventoryPage />} />
+         
 
-          {/* Admin only */}
-          {/* 
+          
           <Route path="admin/users" element={
-            <ProtectedRoute allowedRoles={[Role.ADMIN]}>
               <UserListPage />
-            </ProtectedRoute>
           } />
-          */}
+          
 
           {/* Catch-all for authenticated users */}
           <Route path="*" element={<Navigate to="/" replace />} />
