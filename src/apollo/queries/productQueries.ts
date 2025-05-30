@@ -8,7 +8,9 @@ export const GET_PRODUCTS = gql`
       sku
       price
       description
-
+      category{
+        name
+      }
       inventoryItem {
         quantity
       }

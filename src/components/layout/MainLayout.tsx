@@ -12,7 +12,9 @@ import {
   BarcodeOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
-  HomeOutlined, // For breadcrumb
+  HomeOutlined,
+  ShoppingCartOutlined
+   // For breadcrumb
 } from '@ant-design/icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { Role } from '../../common/enums/role.enum'; // Your frontend Role enum
@@ -83,7 +85,8 @@ const MainLayout: React.FC = () => {
 
   const navItems = [];
   if (user) {
-    navItems.push(getItem(<Link to="/">POS / Dashboard</Link>, '/', <DashboardOutlined />));
+    navItems.push(getItem(<Link to="/">Dashboard</Link>, '/', <DashboardOutlined />));
+    navItems.push(getItem(<Link to="/pos">Point of Sale</Link>, '/pos', </* some other icon */ ShoppingCartOutlined />));
 
     if (hasRole([Role.ADMIN, Role.MANAGER, Role.CASHIER])) {
       navItems.push(getItem(<Link to="/customers">Customers</Link>, '/customers', <SolutionOutlined />));

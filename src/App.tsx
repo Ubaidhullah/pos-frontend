@@ -12,6 +12,8 @@ import CustomerListPage from './features/customers/CustomerListPage';
 import OrderListPage from './features/orders/OrderListPage';
 import UserListPage from './features/users/UserListPage';
 import InventoryPage from './features/inventory/InventoryPage';
+import CategoryListPage from './features/categories/CategoryListPage';
+import DashboardPage from './features/dashboard/DashboardPage';
 // import other pages as you implement them
 import { Role } from './common/enums/role.enum';
 
@@ -32,6 +34,7 @@ const AppRoutes: React.FC = () => {
       <Route element={<ProtectedRoute />}>
         <Route path="/" element={<MainLayout />}>
           <Route index element={<PosInterfacePage />} />
+          <Route index element={<DashboardPage />} />
 
           {/* POS pages for multiple roles */}
           {/* Example: Orders, Customers */}
@@ -46,7 +49,7 @@ const AppRoutes: React.FC = () => {
           } />
 
          
-          {/* <Route path="admin/categories" element={<ProtectedRoute allowedRoles={[Role.ADMIN, Role.MANAGER]}><CategoryListPage /></ProtectedRoute>} /> */}
+          <Route path="admin/categories" element={<ProtectedRoute allowedRoles={[Role.ADMIN, Role.MANAGER]}><CategoryListPage /></ProtectedRoute>} />
           <Route path="admin/inventory" element={<InventoryPage />} />
          
 
