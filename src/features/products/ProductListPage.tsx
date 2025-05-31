@@ -6,6 +6,7 @@ import { GET_PRODUCTS } from '../../apollo/queries/productQueries';
 import { DELETE_PRODUCT } from '../../apollo/mutations/productMutations';
 import { useAuth } from '../../contexts/AuthContext';
 import { Role } from '../../common/enums/role.enum';
+import ProductForm from './ProductForm';
 //import ProductFormModal from './ProductFormModal'; // We'll create this next
 
 const { Title } = Typography;
@@ -111,13 +112,13 @@ const ProductListPage: React.FC = () => {
         rowKey="id"
         // pagination={{ pageSize: 10 }} // Example pagination
       />
-      {/* {isModalVisible && ( // Conditionally render modal
-        // <ProductFormModal
-        //   visible={isModalVisible}
-        //   onClose={handleModalClose}
-        //   productToEdit={editingProduct}
-        // />
-      )} */}
+      {/* The ProductForm modal, its behavior determined by editingProduct */}
+      <ProductForm
+        open={isModalVisible}
+        onClose={handleModalClose}
+        productToEdit={editingProduct} // Pass null for create, or product object for edit
+      />
+    
     </div>
   );
 };

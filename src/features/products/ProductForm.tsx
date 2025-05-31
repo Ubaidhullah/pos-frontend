@@ -52,7 +52,7 @@ const ProductForm: React.FC<ProductFormProps> = ({ open, onClose, productToEdit 
            price: data.product.price,
            description: data.product.description || undefined,
            categoryId: data.product.categoryId || undefined,
-           initialQuantity: data.product.inventoryItem?.quantity, // This is current stock for edit
+           initialQuantity: data.product.inventoryItem?.quantity ?? 0, // This is current stock for edit
          });
        }
      }
