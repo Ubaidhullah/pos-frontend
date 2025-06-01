@@ -13,7 +13,8 @@ import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   HomeOutlined,
-  ShoppingCartOutlined
+  ShoppingCartOutlined,
+  PieChartOutlined
    // For breadcrumb
 } from '@ant-design/icons';
 import { useAuth } from '../../contexts/AuthContext';
@@ -91,6 +92,7 @@ const MainLayout: React.FC = () => {
     if (hasRole([Role.ADMIN, Role.MANAGER, Role.CASHIER])) {
       navItems.push(getItem(<Link to="/customers">Customers</Link>, '/customers', <SolutionOutlined />));
       navItems.push(getItem(<Link to="/orders">Orders</Link>, '/orders', <ShoppingOutlined />));
+      navItems.push(getItem(<Link to="/reports">Reports</Link>, '/reports', <PieChartOutlined />));
     }
     if (hasRole([Role.ADMIN, Role.MANAGER])) {
       navItems.push(getItem('Products & Stock', '/admin/products_stock', <AppstoreOutlined />, [

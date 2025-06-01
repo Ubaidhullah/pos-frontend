@@ -7,6 +7,8 @@ import { GET_USERS } from '../../apollo/queries/userQueries';
 import { useAuth } from '../../contexts/AuthContext'; // For role checking if needed, though page access is primary
 import { Role } from '../../common/enums/role.enum';
 import UpdateUserRoleModal from './UpdateUserRoleModal'; // Import the modal
+import type { ColumnsType } from 'antd/es/table';
+
 
 const { Title } = Typography;
 
@@ -53,34 +55,62 @@ const UserListPage: React.FC = () => {
     [Role.ADMIN]: 'red',
   };
 
-  const columns = [
-    { title: 'Name', dataIndex: 'name', key: 'name', render: (name?: string, record?: User) => name || record?.email.split('@')[0] || 'N/A', sorter: (a: User, b: User) => (a.name || a.email).localeCompare(b.name || b.email) },
-    { title: 'Email', dataIndex: 'email', key: 'email' },
+  const columns: ColumnsType<User> = [
+    {
+      title: 'Name',
+      dataIndex: 'name',
+      key: 'name',
+      render: (name?: string, record?: User) =>
+        name || record?.email.split('@')[0] || 'N/A',
+      sorter: (a, b) => (a.name || a.email).localeCompare(b.name || b.email),
+    },
+    {
+      title: 'Email',
+      dataIndex: 'email',
+      key: 'email',
+    },
     {
       title: 'Role',
       dataIndex: 'role',
       key: 'role',
-      render: (role: Role) => <Tag color={roleColors[role] || 'default'}>{role.toUpperCase()}</Tag>,
-      filters: Object.values(Role).map(role => ({ text: role, value: role })),
-      onFilter: (value: string | number | boolean, record: User) => record.role === value,
+      render: (role: Role) => (
+        <Tag color={roleColors[role] || 'default'}>
+          {role.toUpperCase()}
+        </Tag>
+      ),
+      filters: Object.values(Role).map(role => ({
+        text: role,
+        value: role,
+      })),
+      onFilter: (value, record) => record.role === value,
     },
-    { title: 'Joined On', dataIndex: 'createdAt', key: 'createdAt', render: (date: string) => moment(date).format('YYYY-MM-DD'), sorter: (a: User, b: User) => moment(a.createdAt).unix() - moment(b.createdAt).unix() },
+    {
+      title: 'Joined On',
+      dataIndex: 'createdAt',
+      key: 'createdAt',
+      render: (date: string) => moment(date).format('YYYY-MM-DD'),
+      sorter: (a, b) => moment(a.createdAt).unix() - moment(b.createdAt).unix(),
+    },
     {
       title: 'Actions',
       key: 'actions',
-      render: (_: any, record: User) => (
+      render: (_, record) => (
         <Space size="middle">
-          {hasRole([Role.ADMIN]) && ( // Ensure only admins can trigger role change
+          {hasRole([Role.ADMIN]) && (
             <Tooltip title="Change User Role">
-              <Button icon={<UserSwitchOutlined />} onClick={() => showUpdateRoleModal(record)} />
+              <Button
+                icon={<UserSwitchOutlined />}
+                onClick={() => showUpdateRoleModal(record)}
+              />
             </Tooltip>
           )}
-          {/* Add other actions like 'View Details' if needed */}
         </Space>
       ),
     },
   ];
-
+  
+ 
+  console.log("Current user:", currentUser);
   return (
     <div>
       <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
