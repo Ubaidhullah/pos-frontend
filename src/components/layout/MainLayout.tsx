@@ -42,6 +42,7 @@ const breadcrumbNameMap: Record<string, string> = {
   '/admin/inventory': 'Inventory',
   '/admin/suppliers': 'Suppliers',
   '/admin/users': 'User Management',
+  '/admin/purchase-orders': 'Purchase Orders',
 };
 
 const MainLayout: React.FC = () => {
@@ -101,6 +102,7 @@ const MainLayout: React.FC = () => {
         getItem(<Link to="/admin/categories">Categories</Link>, '/admin/categories', <BarcodeOutlined />),
         getItem(<Link to="/admin/inventory">Inventory</Link>, '/admin/inventory', <ShoppingOutlined />),
         getItem(<Link to="/admin/suppliers">Suppliers</Link>, '/admin/suppliers', <SolutionOutlined />),
+        getItem(<Link to="/admin/purchase-orders">Purchase Orders</Link>, '/admin/purchase-orders', <ShoppingOutlined />),
       ]));
     }
     if (hasRole([Role.ADMIN])) {

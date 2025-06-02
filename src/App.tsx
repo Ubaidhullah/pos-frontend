@@ -16,6 +16,8 @@ import CategoryListPage from './features/categories/CategoryListPage';
 import DashboardPage from './features/dashboard/DashboardPage';
 import ReportingPage from './features/reporting/ReportingPage';
 import SupplierListPage from './features/suppliers/SupplierListPage';
+import PurchaseOrderFormPage from './features/purchase-orders/PurchaseOrderFormPage';
+import PurchaseOrderListPage from './features/purchase-orders/PurchaseOrderListPage';
 
 import { Role } from './common/enums/role.enum';
 
@@ -52,6 +54,10 @@ const AppRoutes: React.FC = () => {
             <Route path="admin/categories" element={<CategoryListPage />} />
             <Route path="admin/inventory" element={<InventoryPage />} />
             <Route path="admin/suppliers" element={<SupplierListPage />} />
+            <Route path="admin/purchase-orders" element={<PurchaseOrderListPage />} />
+            <Route path="admin/purchase-orders/new" element={<PurchaseOrderFormPage />} />
+            <Route path="admin/purchase-orders/edit/:id" element={<PurchaseOrderFormPage />} />
+    {/* <Route path="admin/purchase-orders/:id" element={<PurchaseOrderDetailPage />} /> // For detail view later */}
           </Route>
 
           <Route element={<ProtectedRoute allowedRoles={[Role.ADMIN]} />}>
