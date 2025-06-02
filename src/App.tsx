@@ -1,12 +1,10 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ApolloProvider } from '@apollo/client';
-
 import client from './apollo/client';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import MainLayout from './components/layout/MainLayout';
 import ProtectedRoute from './guards/ProtectedRoute';
-
 import LoginPage from './features/auth/LoginPage';
 import PosInterfacePage from './features/pos/PosInterfacePage';
 import ProductListPage from './features/products/ProductListPage';
@@ -17,6 +15,7 @@ import InventoryPage from './features/inventory/InventoryPage';
 import CategoryListPage from './features/categories/CategoryListPage';
 import DashboardPage from './features/dashboard/DashboardPage';
 import ReportingPage from './features/reporting/ReportingPage';
+import SupplierListPage from './features/suppliers/SupplierListPage';
 
 import { Role } from './common/enums/role.enum';
 
@@ -52,6 +51,7 @@ const AppRoutes: React.FC = () => {
             <Route path="admin/products" element={<ProductListPage />} />
             <Route path="admin/categories" element={<CategoryListPage />} />
             <Route path="admin/inventory" element={<InventoryPage />} />
+            <Route path="admin/suppliers" element={<SupplierListPage />} />
           </Route>
 
           <Route element={<ProtectedRoute allowedRoles={[Role.ADMIN]} />}>
