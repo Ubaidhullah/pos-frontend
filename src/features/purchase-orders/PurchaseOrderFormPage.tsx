@@ -21,8 +21,8 @@ import {
   Alert
 } from 'antd';
 import { PlusOutlined, DeleteOutlined, SaveOutlined, ArrowLeftOutlined } from '@ant-design/icons';
-import moment from 'moment';
-import type { Moment } from 'moment';
+import dayjs from 'dayjs';
+
 import { GET_SUPPLIERS } from '../../apollo/queries/supplierQueries';
 import { GET_PRODUCTS } from '../../apollo/queries/productQueries'; // Basic product list
 import { GET_PURCHASE_ORDER_BY_ID } from '../../apollo/queries/purchaseOrderQueries';
@@ -30,7 +30,7 @@ import { CREATE_PURCHASE_ORDER, UPDATE_DRAFT_PURCHASE_ORDER } from '../../apollo
 import { PurchaseOrderStatus } from '../../common/enums/purchase-order-status.enum'; // Frontend enum
 import { useAuth } from '../../contexts/AuthContext';
 import { Role } from '../../common/enums/role.enum';
-import dayjs from 'dayjs';
+import { create } from 'domain';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -50,8 +50,8 @@ interface POItemFormValue {
 interface PurchaseOrderFormValues {
   poNumber?: string; // Will be auto-generated if not provided on create
   supplierId?: string;
-  orderDate?: Moment;
-  expectedDeliveryDate?: Moment;
+  orderDate?: dayjs.Dayjs // Use dayjs for date handling
+  expectedDeliveryDate?: dayjs.Dayjs;
   notes?: string;
   shippingCost?: number;
   taxes?: number;
@@ -97,8 +97,8 @@ const PurchaseOrderFormPage: React.FC = () => {
       form.setFieldsValue({
         poNumber: purchaseOrder.poNumber,
         supplierId: purchaseOrder.supplierId,
-        orderDate: purchaseOrder.orderDate ? moment(purchaseOrder.orderDate) : undefined,
-        expectedDeliveryDate: purchaseOrder.expectedDeliveryDate ? moment(purchaseOrder.expectedDeliveryDate) : undefined,
+        orderDate: purchaseOrder.orderDate ? dayjs(purchaseOrder.orderDate) : undefined,
+        expectedDeliveryDate: purchaseOrder.expectedDeliveryDate ? dayjs(purchaseOrder.expectedDeliveryDate) : undefined,
         notes: purchaseOrder.notes || '',
         shippingCost: purchaseOrder.shippingCost || 0,
         taxes: purchaseOrder.taxes || 0,
@@ -113,7 +113,7 @@ const PurchaseOrderFormPage: React.FC = () => {
     } else if (!isEditMode) {
         // Set default values for new PO
         form.setFieldsValue({
-            orderDate: moment(),
+            orderDate: dayjs(),
             items: [{ productId: undefined, quantityOrdered: 1, unitCost: 0 }], // Start with one empty item
             shippingCost: 0,
             taxes: 0,
@@ -163,6 +163,7 @@ const PurchaseOrderFormPage: React.FC = () => {
       })).filter(item => item.productId && item.quantityOrdered > 0 && item.unitCost >= 0), // Filter out invalid items
       shippingCost: Number(values.shippingCost) || 0,
       taxes: Number(values.taxes) || 0,
+      createdBy: currentUser?.id, // Assuming currentUser is available from context
     };
 
     if (submissionInput.items.length === 0) {

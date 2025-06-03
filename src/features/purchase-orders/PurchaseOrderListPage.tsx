@@ -13,8 +13,8 @@ import { PurchaseOrderStatus } from '../../common/enums/purchase-order-status.en
 import dayjs, { Dayjs } from 'dayjs';
 
 // Import Modals (we'll create these later)
-// import UpdatePOStatusModal from './UpdatePOStatusModal';
-// import ReceivePOItemsModal from './ReceivePOItemsModal';
+import UpdatePOStatusModal from './UpdatePOStatusModal';
+import ReceivePOItemsModal from './ReceivePOItemsModal';
 
 
 const { Title } = Typography;
@@ -211,7 +211,7 @@ const PurchaseOrderListPage: React.FC = () => {
       />
 
       {/* Modals for actions - to be created next */}
-      {/* {selectedPOForAction && (
+      {selectedPOForAction && (
           <>
             <UpdatePOStatusModal
                 open={isUpdateStatusModalOpen}
@@ -221,10 +221,10 @@ const PurchaseOrderListPage: React.FC = () => {
             <ReceivePOItemsModal
                 open={isReceiveItemsModalOpen}
                 onClose={() => { setIsReceiveItemsModalOpen(false); setSelectedPOForAction(null); refetch(); }}
-                purchaseOrder={selectedPOForAction}
+                purchaseOrderId={selectedPOForAction.id}
             />
           </>
-      )} */}
+      )}
     </div>
   );
 };
