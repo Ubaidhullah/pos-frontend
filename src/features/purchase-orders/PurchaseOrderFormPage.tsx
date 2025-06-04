@@ -30,7 +30,7 @@ import { CREATE_PURCHASE_ORDER, UPDATE_DRAFT_PURCHASE_ORDER } from '../../apollo
 import { PurchaseOrderStatus } from '../../common/enums/purchase-order-status.enum'; // Frontend enum
 import { useAuth } from '../../contexts/AuthContext';
 import { Role } from '../../common/enums/role.enum';
-import { create } from 'domain';
+
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -163,7 +163,6 @@ const PurchaseOrderFormPage: React.FC = () => {
       })).filter(item => item.productId && item.quantityOrdered > 0 && item.unitCost >= 0), // Filter out invalid items
       shippingCost: Number(values.shippingCost) || 0,
       taxes: Number(values.taxes) || 0,
-      createdBy: currentUser?.id, // Assuming currentUser is available from context
     };
 
     if (submissionInput.items.length === 0) {
