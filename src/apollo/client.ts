@@ -1,16 +1,17 @@
 import {
     ApolloClient,
     InMemoryCache,
-    createHttpLink,
+    // createHttpLink,// For file uploads if needed
     ApolloLink,
     from, // Use 'from' to chain links
   } from '@apollo/client';
+  import createUploadLink from 'apollo-upload-client/createUploadLink.mjs';
   import { setContext } from '@apollo/client/link/context';
   import { onError } from '@apollo/client/link/error';
   import { message } from 'antd'; // For displaying error messages
   
   // HTTP connection to your GraphQL API
-  const httpLink = createHttpLink({
+  const httpLink = createUploadLink({
     uri: import.meta.env.VITE_GRAPHQL_ENDPOINT || 'http://localhost:3000/graphql',
   });
   

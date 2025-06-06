@@ -19,6 +19,7 @@ import SupplierListPage from './features/suppliers/SupplierListPage';
 import PurchaseOrderFormPage from './features/purchase-orders/PurchaseOrderFormPage';
 import PurchaseOrderListPage from './features/purchase-orders/PurchaseOrderListPage';
 import PurchaseOrderDetailPage from './features/purchase-orders/PurchaseOrderDetailPage';
+import ExpensePage from './features/expenses/ExpensePage';
 
 import { Role } from './common/enums/role.enum';
 
@@ -48,6 +49,7 @@ const AppRoutes: React.FC = () => {
           <Route path="pos" element={<PosInterfacePage />} />
           <Route path="orders" element={<OrderListPage />} />
           <Route path="customers" element={<CustomerListPage />} />
+          <Route path='expenses' element={<ExpensePage/>}/>
 
           {/* Role Protected Routes */}
           <Route element={<ProtectedRoute allowedRoles={[Role.ADMIN, Role.MANAGER]} />}>

@@ -38,6 +38,7 @@ const breadcrumbNameMap: Record<string, string> = {
   '/customers': 'Customers',
   '/orders': 'Orders',
   '/admin': 'Admin',
+  '/expenses': "Expenses",
   '/admin/products': 'Products',
   '/admin/categories': 'Categories',
   '/admin/inventory': 'Inventory',
@@ -96,6 +97,8 @@ const MainLayout: React.FC = () => {
       navItems.push(getItem(<Link to="/customers">Customers</Link>, '/customers', <SolutionOutlined />));
       navItems.push(getItem(<Link to="/orders">Orders</Link>, '/orders', <ShoppingOutlined />));
       navItems.push(getItem(<Link to="/reports">Reports</Link>, '/reports', <PieChartOutlined />));
+      navItems.push(getItem(<Link to="/expenses">Expenses</Link>, '/expenses', <ShoppingOutlined />));
+
     }
     if (hasRole([Role.ADMIN, Role.MANAGER])) {
       navItems.push(getItem('Products & Stock', '/admin/products_stock', <AppstoreOutlined />, [

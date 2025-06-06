@@ -1,8 +1,8 @@
 import { gql } from '@apollo/client';
 
 export const GET_ORDERS = gql`
-  query GetOrders($startDate: DateTime, $endDate: DateTime, $status: String) { # Adjust arg types to match backend
-    orders(startDate: $startDate, endDate: $endDate, status: $status) { # Adjust query name/args
+  query GetOrders($startDate: String, $endDate: String, $status: OrderStatus) {
+    orders(startDate: $startDate, endDate: $endDate, status: $status) {
       id
       totalAmount
       status
@@ -16,7 +16,7 @@ export const GET_ORDERS = gql`
         id
         name
       }
-      items { # Fetch items for detail view
+      items {
         id
         product {
           id
