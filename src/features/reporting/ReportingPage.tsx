@@ -1,24 +1,25 @@
 import React, { useState, useEffect } from 'react';
-import { useLazyQuery } from '@apollo/client'; // Use useLazyQuery for on-demand fetching
-import { Row, Col, Card, Statistic, Spin, Alert, DatePicker, Button, Typography, Divider, message } from 'antd';
-import { DollarCircleOutlined, ShoppingCartOutlined, CalculatorOutlined, SearchOutlined } from '@ant-design/icons';
+import { useLazyQuery } from '@apollo/client';
+import { Row, Col, Card, Statistic, Spin, Alert, DatePicker, Button, Typography, Table, message } from 'antd';
+import {
+  DollarCircleOutlined, ShoppingCartOutlined, CalculatorOutlined, SearchOutlined,
+  LineChartOutlined, PieChartOutlined, TrophyOutlined
+} from '@ant-design/icons';
+import { Line, Pie } from '@ant-design/charts'; // Import charts
 import dayjs, { Dayjs } from 'dayjs';
-import isBetween from 'dayjs/plugin/isBetween';
-import weekday from 'dayjs/plugin/weekday';
-import isoWeek from 'dayjs/plugin/isoWeek';
-import { GET_SALES_SUMMARY_BY_DATE_RANGE } from '../../apollo/queries/reportingQueries';
-import { useAuth } from '../../contexts/AuthContext'; // For role-based access if needed
+import {
+  GET_SALES_SUMMARY_BY_DATE_RANGE,
+  GET_DAILY_SALES,
+  GET_SALES_BREAKDOWN_BY_CATEGORY,
+  GET_TOP_SELLING_PRODUCTS,
+} from '../../apollo/queries/reportingQueries';
+import { useAuth } from '../../contexts/AuthContext';
 import { Role } from '../../common/enums/role.enum';
 
-
-const { Title } = Typography;
+const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
-const { Text } = Typography;
 
-dayjs.extend(isBetween);
-dayjs.extend(weekday);
-dayjs.extend(isoWeek);
-// Define the structure of the data expected from the GraphQL query
+// --- Interfaces for fetched data ---
 interface SalesSummaryData {
   salesSummaryByDateRange: {
     totalSales: number;
@@ -26,85 +27,135 @@ interface SalesSummaryData {
     averageOrderValue: number;
   };
 }
+interface DailySalesData {
+  dailySales: { date: string; value: number; }[];
+}
+interface CategoryBreakdownData {
+  salesBreakdownByCategory: { categoryName: string; totalSales: number; }[];
+}
+interface TopProductData {
+  topSellingProducts: {
+    product: { id: string; name: string; sku: string; };
+    totalQuantitySold: number;
+    totalRevenue: number;
+  }[];
+}
 
 const ReportingPage: React.FC = () => {
-  const { hasRole } = useAuth(); // Example: restrict access if needed, though route protection is primary
-
-  const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null]>([
+  const { hasRole } = useAuth();
+  const [dateRange, setDateRange] = useState<[Dayjs, Dayjs]>([
     dayjs().startOf('month'),
-    dayjs().endOf('month'),
+    dayjs().endOf('day'),
   ]);
-  
 
-  const [
-    fetchSalesSummary,
-    { data: summaryData, loading: summaryLoading, error: summaryError, called }
-  ] = useLazyQuery<SalesSummaryData>(GET_SALES_SUMMARY_BY_DATE_RANGE);
+  const [fetchSummary, { data: summaryData, loading: summaryLoading }] = useLazyQuery<SalesSummaryData>(GET_SALES_SUMMARY_BY_DATE_RANGE);
+  const [fetchDailySales, { data: dailySalesData, loading: dailySalesLoading }] = useLazyQuery<DailySalesData>(GET_DAILY_SALES);
+  const [fetchCategoryBreakdown, { data: categoryData, loading: categoryLoading }] = useLazyQuery<CategoryBreakdownData>(GET_SALES_BREAKDOWN_BY_CATEGORY);
+  const [fetchTopProducts, { data: topProductsData, loading: topProductsLoading }] = useLazyQuery<TopProductData>(GET_TOP_SELLING_PRODUCTS);
 
-  const handleFetchReport = () => {
-    if (dateRange && dateRange[0] && dateRange[1]) {
-      fetchSalesSummary({
-        variables: {
-          startDate: dateRange[0].toISOString(), // Send as ISO string
-          endDate: dateRange[1].toISOString(),   // Send as ISO string
-        },
-      });
-    } else {
-      message.error('Please select a valid date range.');
+  const isLoading = summaryLoading || dailySalesLoading || categoryLoading || topProductsLoading;
+
+  const fetchAllReports = () => {
+    if (!dateRange || !dateRange[0] || !dateRange[1]) {
+      message.error("Please select a valid date range.");
+      return;
     }
+
+    const variables = {
+      startDate: dateRange[0].startOf('day').toISOString(),
+      endDate: dateRange[1].endOf('day').toISOString(),
+    };
+
+    fetchSummary({ variables });
+    fetchDailySales({ variables });
+    fetchCategoryBreakdown({ variables });
+    fetchTopProducts({ variables: { ...variables, take: 5 } });
   };
 
-  // Fetch report on initial load with default date range
   useEffect(() => {
-    handleFetchReport();
+    fetchAllReports();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Run once on mount
+  }, []);
 
-  const summary = summaryData?.salesSummaryByDateRange;
-
-  // Ensure user has permission (though primary control is via route guards)
   if (!hasRole([Role.ADMIN, Role.MANAGER])) {
-      return <Alert message="Access Denied" description="You do not have permission to view this page." type="error" showIcon />;
+    return <Alert message="Access Denied" description="You do not have permission to view reports." type="error" showIcon />;
   }
+
+  const dailySalesConfig = {
+    data: dailySalesData?.dailySales || [],
+    padding: 'auto',
+    xField: 'date',
+    yField: 'value',
+    xAxis: { tickCount: 5 },
+    yAxis: {
+      label: { formatter: (v: string) => `$${v}` }
+    },
+    tooltip: {
+      formatter: (datum: any) => ({ name: 'Sales', value: `$${datum.value.toFixed(2)}` })
+    },
+    smooth: true,
+  };
+
+  const categoryBreakdownConfig = {
+    appendPadding: 10,
+    data: categoryData?.salesBreakdownByCategory || [],
+    angleField: 'totalSales',
+    colorField: 'categoryName',
+    radius: 0.8,
+    label: {
+      type: 'inner',
+      offset: '-50%',
+      content: '{value}',
+      style: { textAlign: 'center', fontSize: 14, fill: '#fff' },
+      formatter: (datum: any) => `$${datum.totalSales.toFixed(0)}`,
+    },
+    interactions: [{ type: 'element-active' }],
+    tooltip: {
+      formatter: (datum: any) => ({
+        name: datum.categoryName,
+        value: `$${datum.totalSales.toFixed(2)}`
+      })
+    },
+  };
+
+  const topProductsColumns = [
+    { title: 'Product Name', dataIndex: ['product', 'name'], key: 'name' },
+    { title: 'SKU', dataIndex: ['product', 'sku'], key: 'sku' },
+    { title: 'Total Units Sold', dataIndex: 'totalQuantitySold', key: 'units', align: 'right' as const },
+    { title: 'Total Revenue', dataIndex: 'totalRevenue', key: 'revenue', align: 'right' as const, render: (val: number) => `$${val.toFixed(2)}` },
+  ];
 
   return (
     <div>
-      <Title level={2} style={{ marginBottom: '24px' }}>Sales Summary Report</Title>
+      <Title level={2} style={{ marginBottom: '24px' }}>Business Reports 📊</Title>
 
       <Card style={{ marginBottom: 24 }}>
         <Row gutter={16} align="bottom">
-          <Col xs={24} sm={12} md={10}>
-            <Text strong>Select Date Range:</Text><br/>
+          <Col xs={24} sm={24} md={18}>
+            <Text strong>Select Date Range:</Text><br />
             <RangePicker
-                value={dateRange}
-                onChange={(dates) => setDateRange(dates as [Dayjs | null, Dayjs | null])}
-                style={{ width: '100%' }}
-                ranges={{
-                    Today: [dayjs().startOf('day'), dayjs().endOf('day')],
-                    Yesterday: [
-                    dayjs().subtract(1, 'day').startOf('day'),
-                    dayjs().subtract(1, 'day').endOf('day'),
-                    ],
-                    'This Week': [dayjs().startOf('week'), dayjs().endOf('week')],
-                    'Last Week': [
-                    dayjs().subtract(1, 'week').startOf('week'),
-                    dayjs().subtract(1, 'week').endOf('week'),
-                    ],
-                    'This Month': [dayjs().startOf('month'), dayjs().endOf('month')],
-                    'Last Month': [
-                    dayjs().subtract(1, 'month').startOf('month'),
-                    dayjs().subtract(1, 'month').endOf('month'),
-                    ],
-                }}
-                />
+              value={dateRange}
+              onChange={(dates) => setDateRange(dates as [Dayjs, Dayjs])}
+              style={{ width: '100%' }}
+              ranges={{
+                'Today': [dayjs().startOf('day'), dayjs().endOf('day')],
+                'This Week': [dayjs().startOf('week'), dayjs().endOf('week')],
+                'This Month': [dayjs().startOf('month'), dayjs().endOf('month')],
+                'Last Month': [
+                  dayjs().subtract(1, 'month').startOf('month'),
+                  dayjs().subtract(1, 'month').endOf('month')
+                ],
+                'This Year': [dayjs().startOf('year'), dayjs().endOf('year')],
+              }}
+            />
           </Col>
-          <Col xs={24} sm={12} md={4}>
+          <Col xs={24} sm={24} md={6}>
             <Button
               type="primary"
               icon={<SearchOutlined />}
-              onClick={handleFetchReport}
-              loading={summaryLoading}
-              style={{ width: '100%', marginTop: '10px' }} // Adjust margin for mobile
+              onClick={fetchAllReports}
+              loading={isLoading}
+              style={{ width: '100%', marginTop: '10px' }}
             >
               Generate Report
             </Button>
@@ -112,61 +163,47 @@ const ReportingPage: React.FC = () => {
         </Row>
       </Card>
 
-      {summaryLoading && <div style={{textAlign: 'center', padding: '50px'}}><Spin size="large" tip="Loading report..." /></div>}
-      {summaryError && !summaryLoading && (
-        <Alert
-          message="Error loading sales summary"
-          description={summaryError.message}
-          type="error"
-          showIcon
-          closable
-          style={{ marginBottom: 16 }}
-        />
-      )}
+      <Row gutter={[16, 16]}>
+        <Col xs={24} sm={12} md={8}>
+          <Card bordered hoverable>
+            <Statistic title="Total Sales" value={summaryData?.salesSummaryByDateRange.totalSales} precision={2} prefix={<DollarCircleOutlined />} valueStyle={{ color: '#3f8600' }} loading={summaryLoading} />
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} md={8}>
+          <Card bordered hoverable>
+            <Statistic title="Number of Orders" value={summaryData?.salesSummaryByDateRange.numberOfOrders} prefix={<ShoppingCartOutlined />} valueStyle={{ color: '#1890ff' }} loading={summaryLoading} />
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} md={8}>
+          <Card bordered hoverable>
+            <Statistic title="Average Order Value" value={summaryData?.salesSummaryByDateRange.averageOrderValue} precision={2} prefix={<CalculatorOutlined />} valueStyle={{ color: '#faad14' }} loading={summaryLoading} />
+          </Card>
+        </Col>
 
-      {called && !summaryLoading && !summaryError && summary && (
-        <Row gutter={[16, 16]}>
-          <Col xs={24} sm={12} md={8}>
-            <Card bordered hoverable>
-              <Statistic
-                title="Total Sales"
-                value={summary.totalSales}
-                precision={2}
-                prefix={<DollarCircleOutlined />}
-                valueStyle={{ color: '#3f8600' }}
-              />
-            </Card>
-          </Col>
-          <Col xs={24} sm={12} md={8}>
-            <Card bordered hoverable>
-              <Statistic
-                title="Number of Orders"
-                value={summary.numberOfOrders}
-                prefix={<ShoppingCartOutlined />}
-                valueStyle={{ color: '#1890ff' }}
-              />
-            </Card>
-          </Col>
-          <Col xs={24} sm={12} md={8}>
-            <Card bordered hoverable>
-              <Statistic
-                title="Average Order Value"
-                value={summary.averageOrderValue}
-                precision={2}
-                prefix={<CalculatorOutlined />}
-                valueStyle={{ color: '#faad14' }}
-              />
-            </Card>
-          </Col>
-        </Row>
-      )}
-      {called && !summaryLoading && !summaryError && !summary && (
-          <Alert message="No data found for the selected period." type="info" showIcon />
-      )}
+        <Col xs={24} lg={16}>
+          <Card title={<><LineChartOutlined /> Sales Trend</>} style={{ height: '100%' }}>
+            {dailySalesLoading ? <div style={{ textAlign: 'center', padding: '50px' }}><Spin /></div> : <Line {...dailySalesConfig} />}
+          </Card>
+        </Col>
 
-      {/* Placeholder for potential charts or more detailed tables */}
-      {/* <Divider style={{marginTop: 32}}>Sales Trend (Chart Placeholder)</Divider> */}
-      {/* <Card title="Sales Trend"> ... Chart component would go here ... </Card> */}
+        <Col xs={24} lg={8}>
+          <Card title={<><PieChartOutlined /> Sales by Category</>} style={{ height: '100%' }}>
+            {categoryLoading ? <div style={{ textAlign: 'center', padding: '50px' }}><Spin /></div> : <Pie {...categoryBreakdownConfig} />}
+          </Card>
+        </Col>
+
+        <Col xs={24}>
+          <Card title={<><TrophyOutlined /> Top 5 Selling Products</>}>
+            <Table
+              columns={topProductsColumns}
+              dataSource={topProductsData?.topSellingProducts}
+              loading={topProductsLoading}
+              rowKey={(record) => record.product.id}
+              pagination={false}
+            />
+          </Card>
+        </Col>
+      </Row>
     </div>
   );
 };
