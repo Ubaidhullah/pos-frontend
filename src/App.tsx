@@ -21,6 +21,7 @@ import PurchaseOrderListPage from './features/purchase-orders/PurchaseOrderListP
 import PurchaseOrderDetailPage from './features/purchase-orders/PurchaseOrderDetailPage';
 import ExpensePage from './features/expenses/ExpensePage';
 import SettingsPage from './features/settings/SettingsPage';
+import ReturnsPage from './features/returns/ReturnsPage';
 
 import { Role } from './common/enums/role.enum';
 
@@ -62,6 +63,7 @@ const AppRoutes: React.FC = () => {
             <Route path="admin/purchase-orders/new" element={<PurchaseOrderFormPage />} />
             <Route path="admin/purchase-orders/edit/:id" element={<PurchaseOrderFormPage />} />
             <Route path="admin/purchase-orders/:id" element={<PurchaseOrderDetailPage />} />
+            <Route path="returns" element={<ReturnsPage />} />
     {/* <Route path="admin/purchase-orders/:id" element={<PurchaseOrderDetailPage />} /> // For detail view later */}
           </Route>
 

@@ -28,3 +28,25 @@ export const GET_ORDERS = gql`
     }
   }
 `;
+
+export const GET_ORDER_FOR_RETURN = gql`
+  query GetOrderForReturn($id: ID!) {
+    order(id: $id) {
+      id
+      billNumber # ✅ CORRECT: Use billNumber instead of poNumber
+      status
+      items {
+        id
+        quantity
+        quantityReturned # ✅ CORRECT: This field now exists
+        priceAtSale
+        total            # ✅ CORRECT: This field now exists
+        product {
+          id
+          name
+          sku
+        }
+      }
+    }
+  }
+`;

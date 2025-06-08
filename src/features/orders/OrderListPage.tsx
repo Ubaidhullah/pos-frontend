@@ -78,6 +78,7 @@ const OrderListPage: React.FC = () => {
     COMPLETED: 'green',
     CANCELLED: 'red',
     PROCESSING: 'blue',
+    RETURNED: 'purple',
     // Add more statuses and their colors
   };
 
@@ -114,6 +115,8 @@ const OrderListPage: React.FC = () => {
           <Option value="PENDING">Pending</Option>
           <Option value="COMPLETED">Completed</Option>
           <Option value="CANCELLED">Cancelled</Option>
+          <Option value="PROCESSING">Processing</Option>
+          <Option value="RETURNED">Returned</Option>
           {/* Add other statuses */}
         </Select>
         <Button type="primary" onClick={handleApplyFilters} loading={loading}>Apply Filters</Button>
