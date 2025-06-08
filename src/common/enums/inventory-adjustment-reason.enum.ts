@@ -1,0 +1,9 @@
+export enum InventoryAdjustmentReason {
+    SALE = 'SALE',
+  PO_RECEIPT = 'PO_RECEIPT',
+  MANUAL_ADJUSTMENT = 'MANUAL_ADJUSTMENT',
+  DAMAGE = 'DAMAGE',
+  THEFT = 'THEFT',
+  RETURN = 'RETURN',
+  INITIAL_STOCK = 'INITIAL_STOCK',
+  }
