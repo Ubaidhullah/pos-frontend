@@ -111,6 +111,7 @@ const MainLayout: React.FC = () => {
     }
     if (hasRole([Role.ADMIN])) {
       navItems.push(getItem(<Link to="/admin/users">User Management</Link>, '/admin/users', <TeamOutlined />));
+      navItems.push(getItem(<Link to="/settings">Settings</Link>, '/settings', <UserOutlined />));
     }
   }
 
