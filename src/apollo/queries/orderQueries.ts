@@ -1,7 +1,7 @@
 import { gql } from '@apollo/client';
 
 export const GET_ORDERS = gql`
-  query GetOrders($startDate: String, $endDate: String, $status: OrderStatus) {
+  query GetOrders($startDate: DateTime, $endDate: DateTime, $status: OrderStatus) {
     orders(startDate: $startDate, endDate: $endDate, status: $status) {
       id
       totalAmount

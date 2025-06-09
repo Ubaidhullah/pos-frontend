@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useLazyQuery } from '@apollo/client';
 import { Row, Col, Card, List, Button, Select, InputNumber, Typography, message, Spin, Divider, Space } from 'antd';
-import { ShoppingCartOutlined, UserOutlined, DeleteOutlined } from '@ant-design/icons';
+import { ShoppingCartOutlined, DeleteOutlined, DollarCircleOutlined } from '@ant-design/icons';
 import { GET_PRODUCTS } from '../../apollo/queries/productQueries'; // Assuming this fetches enough detail
 import { GET_CUSTOMERS } from '../../apollo/queries/customerQueries'; // For customer selection
 import { CREATE_ORDER_MUTATION } from '../../apollo/mutations/orderMutations'; // Define this
+import PaymentModal, { type PaymentInput } from './PaymentModal';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -46,22 +47,26 @@ interface CartItem {
 }
 
 const PosInterfacePage: React.FC = () => {
-  const { data: productsData, loading: productsLoading, error: productsError } = useQuery<{ products: ProductData[] }>(GET_PRODUCTS);
+  const { data: productsData, loading: productsLoading, error: productsError,refetch: refetchProducts } = useQuery<{ products: ProductData[] }>(GET_PRODUCTS);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | undefined>(undefined);
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
 
   // For customer search in Select component
   const [fetchCustomers, { data: customersData, loading: customersLoading }] = useLazyQuery<{ customers: CustomerData[] }>(GET_CUSTOMERS);
 
-  const [createOrder, { loading: orderLoading, error: orderError }] = useMutation(CREATE_ORDER_MUTATION, {
+   const [createOrder, { loading: orderLoading, error: orderError }] = useMutation(CREATE_ORDER_MUTATION, {
     onCompleted: (data) => {
-      message.success(`Order #${data.createOrder.id} created successfully! Total: $${data.createOrder.totalAmount.toFixed(2)}`);
+      message.success(`Order #${data.createOrder.billNumber} created successfully! Change due: $${data.createOrder.changeGiven.toFixed(2)}`);
+      // Reset state after successful order
       setCart([]);
       setSelectedCustomerId(undefined);
-      // TODO: Refetch product inventory or update cache if needed
+      setIsPaymentModalOpen(false);
+      refetchProducts(); // Refetch product list to update stock counts
     },
     onError: (err) => {
       message.error(`Error creating order: ${err.message}`);
+      // The modal can stay open on error for the user to try again
     }
   });
 
@@ -119,6 +124,35 @@ const PosInterfacePage: React.FC = () => {
     createOrder({ variables: { createOrderInput: { items: orderItems, customerId: selectedCustomerId } } });
   };
 
+    const handleCheckout = () => {
+    if (cart.length === 0) {
+      message.error('Cart is empty!');
+      return;
+    }
+    // Open the payment modal instead of calling the mutation
+    setIsPaymentModalOpen(true);
+  };
+
+  const handleProcessPayment = (payments: PaymentInput[]) => {
+    // This function is passed to the modal and called on submit
+    const orderItems = cart.map(item => ({
+      productId: item.productId,
+      quantity: item.quantity,
+      priceAtSale: item.price,
+    }));
+
+    createOrder({
+      variables: {
+        createOrderInput: {
+          items: orderItems,
+          payments: payments,
+          customerId: selectedCustomerId,
+          // notes could be added here if there's a notes field
+        }
+      }
+    });
+  };
+
 
   useEffect(() => {
     // Fetch initial set of customers or when search term changes if implementing server-side search
@@ -131,6 +165,7 @@ const PosInterfacePage: React.FC = () => {
 
 
   return (
+    <>
     <Row gutter={16}>
       <Col xs={24} md={14} lg={16}>
         <Title level={3}>Products</Title>
@@ -213,23 +248,31 @@ const PosInterfacePage: React.FC = () => {
             />
           )}
           <Divider />
-          <div style={{ textAlign: 'right', marginTop: 16 }}>
-            <Title level={4}>Total: ${calculateTotal().toFixed(2)}</Title>
-            <Button
-              type="primary"
-              size="large"
-              icon={<ShoppingCartOutlined />}
-              onClick={handlePlaceOrder}
-              disabled={cart.length === 0 || orderLoading}
-              loading={orderLoading}
-              style={{width: '100%', marginTop: '10px'}}
-            >
-              Place Order
-            </Button>
-          </div>
-        </Card>
-      </Col>
-    </Row>
+            <div style={{ textAlign: 'right', marginTop: 16 }}>
+              <Title level={4}>Total: ${calculateTotal().toFixed(2)}</Title>
+              <Button
+                type="primary"
+                size="large"
+                icon={<DollarCircleOutlined />}
+                onClick={handleCheckout} // 👈 This now opens the modal
+                disabled={cart.length === 0 || orderLoading}
+                style={{width: '100%', marginTop: '10px'}}
+              >
+                Proceed to Payment
+              </Button>
+            </div>
+          </Card>
+        </Col>
+      </Row>
+       <PaymentModal
+        open={isPaymentModalOpen}
+        onClose={() => setIsPaymentModalOpen(false)}
+        totalAmountDue={calculateTotal()}
+        onSubmit={handleProcessPayment}
+        isProcessing={orderLoading}
+      />
+    </>
+
   );
 };
 
