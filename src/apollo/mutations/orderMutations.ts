@@ -5,26 +5,24 @@ export const CREATE_ORDER_MUTATION = gql`
     createOrder(createOrderInput: $createOrderInput) {
       id
       billNumber
-      createdAt
-      itemsTotal
-      totalAmount # Use totalAmount
+      totalAmount
+      grandTotal 
       amountPaid
       changeGiven
-      user {
-        name
-        email
-      }
-      customer {
-        name
-      }
-      # 👇 CRUCIAL: You MUST ask for items and payments in the return payload
+      # Also fetch the full details for the receipt
+      createdAt
+      itemsTotal
+      discountAmount
+      subTotal
+      user { name, email }
+      customer { name }
       items {
-        product {
-          name
-        }
+        product { name }
         quantity
         priceAtSale
         lineTotal
+        discountAmount
+        finalLineTotal
       }
       payments {
         method
