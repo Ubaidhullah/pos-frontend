@@ -30,7 +30,11 @@ const { useToken } = antdTheme; // Ant Design v5 theme token hook
 
 // Helper to create Menu items (same as before)
 function getItem(label: React.ReactNode, key: string, icon?: React.ReactNode, children?: any[], type?: 'group') {
-  return { key, icon, children, label, type };
+  const item: any = { key, icon, label, type };
+  if (children && children.length > 0) {
+    item.children = children;
+  }
+  return item;
 }
 
 // Breadcrumb generation helper (basic example)

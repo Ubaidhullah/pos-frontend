@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ApolloProvider } from '@apollo/client';
+import { App as AntApp, ConfigProvider, theme } from 'antd';
 import client from './apollo/client';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import MainLayout from './components/layout/MainLayout';
@@ -22,6 +23,7 @@ import PurchaseOrderDetailPage from './features/purchase-orders/PurchaseOrderDet
 import ExpensePage from './features/expenses/ExpensePage';
 import SettingsPage from './features/settings/SettingsPage';
 import ReturnsPage from './features/returns/ReturnsPage';
+import { AntdNoticeProvider } from './contexts/AntdNoticeContext'; 
 
 import { Role } from './common/enums/role.enum';
 
@@ -85,14 +87,21 @@ const AppRoutes: React.FC = () => {
   );
 };
 
-const App: React.FC = () => (
-  <ApolloProvider client={client}>
-    <Router>
-      <AuthProvider>
-        <AppRoutes />
-      </AuthProvider>
-    </Router>
-  </ApolloProvider>
-);
-
+function App() {
+  return (
+    <ConfigProvider>
+      <AntApp>
+        <AntdNoticeProvider>
+          <ApolloProvider client={client}>
+            <Router>
+              <AuthProvider>
+                <AppRoutes />
+              </AuthProvider>
+            </Router>
+          </ApolloProvider>
+        </AntdNoticeProvider>
+      </AntApp>
+    </ConfigProvider>
+  );
+}
 export default App;

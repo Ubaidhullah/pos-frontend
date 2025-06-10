@@ -1,35 +1,44 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useLazyQuery } from '@apollo/client';
-import { Row, Col, Card, List, Button, Select, InputNumber, Typography, message, Spin, Divider, Space } from 'antd';
+import {
+  Row,
+  Col,
+  Card,
+  List,
+  Button,
+  Select,
+  InputNumber,
+  Typography,
+  message,
+  Spin,
+  Divider,
+  Space,
+  Tooltip,
+} from 'antd';
 import { ShoppingCartOutlined, DeleteOutlined, DollarCircleOutlined } from '@ant-design/icons';
-import { GET_PRODUCTS } from '../../apollo/queries/productQueries'; // Assuming this fetches enough detail
-import { GET_CUSTOMERS } from '../../apollo/queries/customerQueries'; // For customer selection
-import { CREATE_ORDER_MUTATION } from '../../apollo/mutations/orderMutations'; // Define this
+import { useReactToPrint } from 'react-to-print';
+
+// Local Imports
+import { GET_PRODUCTS } from '../../apollo/queries/productQueries';
+import { GET_CUSTOMERS } from '../../apollo/queries/customerQueries';
+import { CREATE_ORDER_MUTATION } from '../../apollo/mutations/orderMutations'; // Ensure this file is created
 import PaymentModal, { type PaymentInput } from './PaymentModal';
+import Receipt, { type OrderDataForReceipt } from './Receipt';
+import { useAuth } from '../../contexts/AuthContext';
+import { Role } from '../../common/enums/role.enum';
+import { useAntdNotice } from '../../contexts/AntdNoticeContext'; 
+
 
 const { Title, Text } = Typography;
 const { Option } = Select;
 
-// Define this mutation in src/apollo/mutations/orderMutations.ts
-// export const CREATE_ORDER_MUTATION = gql`
-//   mutation CreateOrder($createOrderInput: CreateOrderInput!) {
-//     createOrder(createOrderInput: $createOrderInput) {
-//       id
-//       totalAmount
-//       status
-//       customer { id name }
-//       items { product { name } quantity }
-//     }
-//   }
-// `;
-
-
+// --- Interfaces for data types ---
 interface ProductData {
   id: string;
   name: string;
   price: number;
-  inventoryItem?: { quantity: number };
-  // Add other fields if needed for display
+  imageUrl?: string;
+  inventoryItem?: { quantity: number; };
 }
 
 interface CustomerData {
@@ -46,30 +55,79 @@ interface CartItem {
   stock: number;
 }
 
+
 const PosInterfacePage: React.FC = () => {
-  const { data: productsData, loading: productsLoading, error: productsError,refetch: refetchProducts } = useQuery<{ products: ProductData[] }>(GET_PRODUCTS);
+  // --- State Management ---
   const [cart, setCart] = useState<CartItem[]>([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | undefined>(undefined);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [lastCompletedOrder, setLastCompletedOrder] = useState<OrderDataForReceipt | null>(null);
+  const { messageApi } = useAntdNotice(); 
 
-  // For customer search in Select component
+  // --- Refs and Hooks ---
+  const { hasRole } = useAuth(); // Assuming useAuth provides role checking
+    const contentRef = useRef<HTMLDivElement>(null);
+
+  // ✅ Pass the ref object directly
+  const handlePrint = useReactToPrint({
+  contentRef,  
+  documentTitle: `Receipt_${lastCompletedOrder?.billNumber}`,
+});
+
+
+
+
+
+  // --- GraphQL Operations ---
+  const { data: productsData, loading: productsLoading, error: productsError, refetch: refetchProducts } = useQuery<{ products: ProductData[] }>(GET_PRODUCTS);
   const [fetchCustomers, { data: customersData, loading: customersLoading }] = useLazyQuery<{ customers: CustomerData[] }>(GET_CUSTOMERS);
-
-   const [createOrder, { loading: orderLoading, error: orderError }] = useMutation(CREATE_ORDER_MUTATION, {
+  
+  const [createOrder, { loading: orderLoading }] = useMutation(CREATE_ORDER_MUTATION, {
     onCompleted: (data) => {
-      message.success(`Order #${data.createOrder.billNumber} created successfully! Change due: $${data.createOrder.changeGiven.toFixed(2)}`);
-      // Reset state after successful order
+      // Step 1: Get the completed order data from the mutation response
+      const newOrderData = data.createOrder as OrderDataForReceipt;
+      
+      // Step 2: Save this data to state. This will trigger a re-render.
+      setLastCompletedOrder(newOrderData);
+
+      // Step 3: Use a small delay. This is crucial! It gives React a moment
+      // to re-render the hidden <Receipt> component with the new order data
+      // before we try to print it.
+      setTimeout(() => {
+        // Step 4: Define the print button as a React element
+        const printButton = (
+          <Button type="primary" onClick={() => handlePrint()}>
+            Print Receipt
+          </Button>
+        );
+        
+        // Step 5: Display the success message, embedding the button element
+        messageApi.success(
+          <Space>
+            <span>{`Order #${newOrderData.billNumber} created! Change: $${newOrderData.changeGiven.toFixed(2)}`}</span>
+            {printButton}
+          </Space>,
+          10 // Keep the message box open for 10 seconds to allow clicking the button
+        );
+      }, 500); // A 500ms delay is usually sufficient
+
+      // Step 6: Reset the POS interface for the next sale
       setCart([]);
       setSelectedCustomerId(undefined);
       setIsPaymentModalOpen(false);
-      refetchProducts(); // Refetch product list to update stock counts
+      refetchProducts();
     },
     onError: (err) => {
-      message.error(`Error creating order: ${err.message}`);
-      // The modal can stay open on error for the user to try again
+      messageApi.error(`Error creating order: ${err.message}`);
     }
   });
 
+  // Fetch customers on component mount
+  useEffect(() => {
+    fetchCustomers();
+  }, [fetchCustomers]);
+
+  // --- Cart Management Functions ---
   const handleAddToCart = (product: ProductData) => {
     if ((product.inventoryItem?.quantity ?? 0) <= 0) {
       message.warning(`${product.name} is out of stock!`);
@@ -96,10 +154,11 @@ const PosInterfacePage: React.FC = () => {
     });
   };
 
-  const handleUpdateCartQuantity = (productId: string, quantity: number) => {
+  const handleUpdateCartQuantity = (productId: string, quantity: number | null) => {
+    const finalQuantity = quantity === null ? 0 : quantity;
     setCart(prevCart => prevCart.map(item =>
       item.productId === productId
-        ? { ...item, quantity: Math.max(0, Math.min(quantity, item.stock)) } // Ensure qty is between 0 and stock
+        ? { ...item, quantity: Math.max(0, Math.min(finalQuantity, item.stock)) }
         : item
     ).filter(item => item.quantity > 0)); // Remove item if quantity becomes 0
   };
@@ -112,29 +171,16 @@ const PosInterfacePage: React.FC = () => {
     return cart.reduce((total, item) => total + item.price * item.quantity, 0);
   };
 
-  const handlePlaceOrder = () => {
+  // --- Checkout Flow Functions ---
+  const handleCheckout = () => {
     if (cart.length === 0) {
       message.error('Cart is empty!');
       return;
     }
-    const orderItems = cart.map(item => ({
-      productId: item.productId,
-      quantity: item.quantity,
-    }));
-    createOrder({ variables: { createOrderInput: { items: orderItems, customerId: selectedCustomerId } } });
-  };
-
-    const handleCheckout = () => {
-    if (cart.length === 0) {
-      message.error('Cart is empty!');
-      return;
-    }
-    // Open the payment modal instead of calling the mutation
     setIsPaymentModalOpen(true);
   };
 
   const handleProcessPayment = (payments: PaymentInput[]) => {
-    // This function is passed to the modal and called on submit
     const orderItems = cart.map(item => ({
       productId: item.productId,
       quantity: item.quantity,
@@ -147,116 +193,119 @@ const PosInterfacePage: React.FC = () => {
           items: orderItems,
           payments: payments,
           customerId: selectedCustomerId,
-          // notes could be added here if there's a notes field
         }
       }
     });
   };
 
-
-  useEffect(() => {
-    // Fetch initial set of customers or when search term changes if implementing server-side search
-    fetchCustomers({ variables: { searchTerm: '' } }); // Fetch all initially
-  }, [fetchCustomers]);
-
-
   if (productsError) message.error(`Error loading products: ${productsError.message}`);
-  if (orderError) message.error(`Order submission error: ${orderError.message}`);
-
 
   return (
     <>
-    <Row gutter={16}>
-      <Col xs={24} md={14} lg={16}>
-        <Title level={3}>Products</Title>
-        {productsLoading && <Spin tip="Loading Products..." />}
-        <List
-          grid={{ gutter: 16, xs: 1, sm: 2, md: 3, lg: 4, xl:5, xxl:6 }} // Responsive grid
-          dataSource={productsData?.products}
-          renderItem={(product) => (
-            <List.Item>
-              <Card
-                hoverable
-                title={product.name}
-                actions={[
-                  <Button
-                    type="primary"
-                    icon={<ShoppingCartOutlined />}
-                    onClick={() => handleAddToCart(product)}
-                    disabled={(product.inventoryItem?.quantity ?? 0) <= 0}
+      <Row gutter={[16, 16]}>
+        {/* Product Selection Column */}
+        <Col xs={24} md={14} lg={16}>
+          <Title level={3}>Point of Sale</Title>
+          {productsLoading ? <div style={{textAlign: 'center', padding: '50px'}}><Spin tip="Loading Products..." size="large"/></div> : (
+            <List
+              grid={{ gutter: 16, xs: 1, sm: 2, md: 3, lg: 4, xl: 5 }}
+              dataSource={productsData?.products}
+              renderItem={(product) => (
+                <List.Item>
+                  <Card
+                    hoverable
+                    cover={product.imageUrl ? <img alt={product.name} src={product.imageUrl} style={{height: 120, objectFit: 'cover'}}/> : <div style={{height: 120, background: '#f0f0f0', display: 'flex', alignItems: 'center', justifyContent: 'center'}}><Text type="secondary">No Image</Text></div>}
+                    bodyStyle={{padding: '12px'}}
+                    actions={[
+                      <Button
+                        type="primary"
+                        icon={<ShoppingCartOutlined />}
+                        onClick={() => handleAddToCart(product)}
+                        disabled={(product.inventoryItem?.quantity ?? 0) <= 0}
+                      >
+                        Add
+                      </Button>
+                    ]}
                   >
-                    Add
-                  </Button>
-                ]}
-              >
-                <Text strong>Price: ${product.price.toFixed(2)}</Text><br/>
-                <Text type={(product.inventoryItem?.quantity ?? 0) > 0 ? 'success' : 'danger'}>
-                  Stock: {product.inventoryItem?.quantity ?? 'N/A'}
-                </Text>
-              </Card>
-            </List.Item>
+                    <Card.Meta
+                      title={<Tooltip title={product.name}>{product.name}</Tooltip>}
+                      description={
+                          <>
+                            <Text strong>${product.price.toFixed(2)}</Text><br/>
+                            <Text type={(product.inventoryItem?.quantity ?? 0) > 10 ? 'success' : 'warning'}>
+                              Stock: {product.inventoryItem?.quantity ?? 'N/A'}
+                            </Text>
+                          </>
+                      }
+                    />
+                  </Card>
+                </List.Item>
+              )}
+            />
           )}
-        />
-      </Col>
-      <Col xs={24} md={10} lg={8}>
-        <Card title={<Space><ShoppingCartOutlined /> Current Sale</Space>} style={{ position: 'sticky', top: '16px' }}>
-          <div style={{ marginBottom: 16 }}>
+        </Col>
+
+        {/* Current Sale / Cart Column */}
+        <Col xs={24} md={10} lg={8}>
+          <Card title={<Space><ShoppingCartOutlined /> Current Sale</Space>} style={{ position: 'sticky', top: '16px' }}>
             <Select
               showSearch
               value={selectedCustomerId}
               placeholder="Select or search customer (Optional)"
               onChange={(value) => setSelectedCustomerId(value)}
-              onSearch={(value) => fetchCustomers({ variables: { searchTerm: value }})} // For server-side search
               loading={customersLoading}
-              filterOption={(input, option) => // Client-side filtering if server-side not implemented
-                (option?.children as unknown as string)?.toLowerCase().includes(input.toLowerCase())
-              }
-              style={{ width: '100%' }}
+              style={{ width: '100%', marginBottom: 16 }}
               allowClear
+              filterOption={(input, option) => (option?.children as unknown as string)?.toLowerCase().includes(input.toLowerCase())}
             >
-              {customersData?.customers.map(customer => (
-                <Option key={customer.id} value={customer.id}>{customer.name} ({customer.email || customer.id})</Option>
-              ))}
+              {customersData?.customers.map(customer => <Option key={customer.id} value={customer.id}>{customer.name}</Option>)}
             </Select>
-          </div>
-          <Divider />
-          {cart.length === 0 ? <Text type="secondary">Cart is empty</Text> : (
-            <List
-              itemLayout="horizontal"
-              dataSource={cart}
-              renderItem={item => (
-                <List.Item
-                  actions={[
-                    <Button type="text" danger icon={<DeleteOutlined />} onClick={() => handleRemoveFromCart(item.productId)} />
-                  ]}
-                >
-                  <List.Item.Meta
-                    title={item.name}
-                    description={`Price: $${item.price.toFixed(2)}`}
-                  />
-                  <InputNumber
-                    min={1}
-                    max={item.stock}
-                    value={item.quantity}
-                    onChange={(value) => handleUpdateCartQuantity(item.productId, value || 0)}
-                    size="small"
-                    style={{width: '60px', marginRight: '8px'}}
-                  />
-                  <Text strong>${(item.price * item.quantity).toFixed(2)}</Text>
-                </List.Item>
+            <Divider />
+
+            <div style={{ maxHeight: 'calc(100vh - 450px)', overflowY: 'auto' }}>
+              {cart.length === 0 ? <Text type="secondary" style={{display: 'block', textAlign: 'center', padding: '20px'}}>Cart is empty.</Text> : (
+                <List
+                  itemLayout="horizontal"
+                  dataSource={cart}
+                  renderItem={item => (
+                    <List.Item
+                      actions={[
+                        <Tooltip title="Remove Item">
+                          <Button type="text" danger icon={<DeleteOutlined />} onClick={() => handleRemoveFromCart(item.productId)} />
+                        </Tooltip>
+                      ]}
+                    >
+                      <List.Item.Meta
+                        title={item.name}
+                        description={`$${item.price.toFixed(2)} each`}
+                      />
+                      <Space direction="vertical" align="end" size="small">
+                        <InputNumber
+                            min={1}
+                            max={item.stock}
+                            value={item.quantity}
+                            onChange={(value) => handleUpdateCartQuantity(item.productId, value)}
+                            size="small"
+                            style={{width: '70px'}}
+                        />
+                         <Text strong>${(item.price * item.quantity).toFixed(2)}</Text>
+                      </Space>
+                    </List.Item>
+                  )}
+                />
               )}
-            />
-          )}
-          <Divider />
+            </div>
+
+            <Divider />
             <div style={{ textAlign: 'right', marginTop: 16 }}>
-              <Title level={4}>Total: ${calculateTotal().toFixed(2)}</Title>
+              <Title level={4} style={{margin: 0}}>Total: ${calculateTotal().toFixed(2)}</Title>
               <Button
                 type="primary"
                 size="large"
                 icon={<DollarCircleOutlined />}
-                onClick={handleCheckout} // 👈 This now opens the modal
+                onClick={handleCheckout}
                 disabled={cart.length === 0 || orderLoading}
-                style={{width: '100%', marginTop: '10px'}}
+                style={{ width: '100%', marginTop: '10px' }}
               >
                 Proceed to Payment
               </Button>
@@ -264,15 +313,23 @@ const PosInterfacePage: React.FC = () => {
           </Card>
         </Col>
       </Row>
-       <PaymentModal
+
+      {/* Payment Modal */}
+      <PaymentModal
         open={isPaymentModalOpen}
         onClose={() => setIsPaymentModalOpen(false)}
         totalAmountDue={calculateTotal()}
         onSubmit={handleProcessPayment}
         isProcessing={orderLoading}
       />
-    </>
 
+      {/* Hidden Receipt Component for Printing */}
+      <div className="receipt-container-hidden">
+        <div ref={contentRef} tabIndex={-1}>
+          <Receipt order={lastCompletedOrder} />
+        </div>
+      </div>
+    </>
   );
 };
 

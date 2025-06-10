@@ -10,6 +10,7 @@ import {
   import { onError } from '@apollo/client/link/error';
   import { message } from 'antd'; // For displaying error messages
   
+  
   // HTTP connection to your GraphQL API
   const httpLink = createUploadLink({
     uri: import.meta.env.VITE_GRAPHQL_ENDPOINT || 'http://localhost:3000/graphql',

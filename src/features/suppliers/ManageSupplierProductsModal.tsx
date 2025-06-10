@@ -5,6 +5,8 @@ import { GET_PRODUCTS } from '../../apollo/queries/productQueries'; // Assuming 
 import { GET_SUPPLIER_BY_ID, GET_SUPPLIERS } from '../../apollo/queries/supplierQueries';
 import { LINK_PRODUCT_TO_SUPPLIER, UNLINK_PRODUCT_FROM_SUPPLIER } from '../../apollo/mutations/supplierMutations';
 import { DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons';
+import { useAntdNotice } from '../../contexts/AntdNoticeContext'; 
+
 
 const { Option } = Select;
 const { Title } = Typography;
@@ -39,7 +41,7 @@ interface LinkProductFormValues {
 const ManageSupplierProductsModal: React.FC<ManageSupplierProductsModalProps> = ({ open, onClose, supplier }) => {
   const [form] = Form.useForm<LinkProductFormValues>();
   const [editingLink, setEditingLink] = useState<ProductSupplierLink | null>(null); // For editing existing cost/code
-
+  const { messageApi } = useAntdNotice(); 
   // Fetch all products for the "Add Product" select dropdown
   const { data: allProductsData, loading: productsLoading } = useQuery<{ products: ProductBasicInfo[] }>(GET_PRODUCTS);
 
@@ -79,13 +81,13 @@ const ManageSupplierProductsModal: React.FC<ManageSupplierProductsModalProps> = 
         },
         refetchQueries: refetchSupplierQueries,
       });
-      message.success(editingLink ? 'Product link details updated!' : 'Product linked to supplier successfully!');
+      messageApi.success(editingLink ? 'Product link details updated!' : 'Product linked to supplier successfully!');
       form.resetFields();
       setEditingLink(null); // Reset editing state
       // The modal might not close automatically, depends on UX preference.
       // onClose(); // Or just let the user continue adding/editing
     } catch (e: any) {
-      message.error(`Failed to link/update product: ${e.message}`);
+      messageApi.error(`Failed to link/update product: ${e.message}`);
     }
   };
 
@@ -95,9 +97,9 @@ const ManageSupplierProductsModal: React.FC<ManageSupplierProductsModalProps> = 
         variables: { unlinkProductFromSupplierInput: { productSupplierId } },
         refetchQueries: refetchSupplierQueries,
       });
-      message.success('Product unlinked successfully!');
+      messageApi.success('Product unlinked successfully!');
     } catch (e: any) {
-      message.error(`Failed to unlink product: ${e.message}`);
+      messageApi.error(`Failed to unlink product: ${e.message}`);
     }
   };
 
