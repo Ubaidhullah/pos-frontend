@@ -15,7 +15,9 @@ import {
   HomeOutlined,
   ShoppingCartOutlined,
   PieChartOutlined,
-  UndoOutlined
+  UndoOutlined,
+  IdcardOutlined,
+  SettingOutlined
    // For breadcrumb
 } from '@ant-design/icons';
 import { useAuth } from '../../contexts/AuthContext';
@@ -116,8 +118,13 @@ const MainLayout: React.FC = () => {
       ]));
     }
     if (hasRole([Role.ADMIN])) {
-      navItems.push(getItem(<Link to="/admin/users">User Management</Link>, '/admin/users', <TeamOutlined />));
-      navItems.push(getItem(<Link to="/settings">Settings</Link>, '/settings', <UserOutlined />));
+      navItems.push(
+        getItem('Administration', '/admin/administration', <SettingOutlined />, [
+          getItem(<Link to="/admin/users">User Management</Link>, '/admin/users', <TeamOutlined />),
+          getItem(<Link to="/settings">Settings</Link>, '/settings', <UserOutlined />),
+          getItem(<Link to="/taxes">Tax Rates</Link>, '/taxes', <IdcardOutlined />),
+        ])
+      );
     }
   }
 

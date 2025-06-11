@@ -12,6 +12,7 @@ export const CREATE_ORDER_MUTATION = gql`
       # Also fetch the full details for the receipt
       createdAt
       itemsTotal
+      taxAmount
       discountAmount
       subTotal
       user { name, email }
@@ -28,6 +29,8 @@ export const CREATE_ORDER_MUTATION = gql`
         method
         amount
       }
+      customer { name }
+      createdAt
     }
   }
 `;

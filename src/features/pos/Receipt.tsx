@@ -3,32 +3,40 @@ import { useQuery } from '@apollo/client';
 import { GET_SETTINGS } from '../../apollo/queries/settingsQueries';
 import './Receipt.css';
 
-// ... (Your interfaces for ReceiptProps, OrderDataForReceipt, etc.) ...
-interface SettingsData { companyName?: string;  address?: string; phone?: string; }
+interface SettingsData {
+  companyName?: string;
+  address?: string;
+  phone?: string;
+}
 
 export interface OrderDataForReceipt {
-    billNumber: string;
-    createdAt: string;
-    itemsTotal: number;
-    grandTotal: number;
-    amountPaid: number;
-    changeGiven: number;
-    user?: { name?: string; email: string };
-    customer?: { name?: string };
-    items: { product: { name: string }, quantity: number, priceAtSale: number, lineTotal: number }[];
-    payments: { method: string, amount: number }[];
+  billNumber: string;
+  createdAt: string;
+  itemsTotal: number;
+  grandTotal: number;
+  amountPaid: number;
+  changeGiven: number;
+  user?: { name?: string; email: string };
+  customer?: { name?: string };
+  items: {
+    product: { name: string };
+    quantity: number;
+    priceAtSale: number;
+    lineTotal: number;
+  }[];
+  payments: { method: string; amount: number }[];
+  subTotal: number; // backend order entity + GQL query
+  discountAmount: number; // backend + GQL
+  taxAmount: number;
 }
 
 interface ReceiptProps {
   order: OrderDataForReceipt | null;
 }
 
-
 const Receipt: React.FC<ReceiptProps> = ({ order }) => {
   const { data: settingsData } = useQuery<{ settings: SettingsData }>(GET_SETTINGS);
 
-  // 👇 FIX #1: ADD THIS GUARD CLAUSE
-  // If there's no order data yet, render nothing.
   if (!order) {
     return null;
   }
@@ -44,9 +52,8 @@ const Receipt: React.FC<ReceiptProps> = ({ order }) => {
         <p>{settings?.phone || '555-1234'}</p>
       </header>
 
-      {/* ... (rest of the component is fine) ... */}
       <section className="receipt-section receipt-info">
-        {/* ... */}
+        {/* Optional info section */}
       </section>
 
       <section className="receipt-section receipt-items">
@@ -60,32 +67,52 @@ const Receipt: React.FC<ReceiptProps> = ({ order }) => {
             </tr>
           </thead>
           <tbody>
-            {/* This .map() is now safe because we checked if 'order' exists */}
-            {Array.isArray(order.items) && order.items.map((item, index) => (
-              <tr key={index}>
-                <td className="col-qty">{item.quantity}</td>
-                <td className="col-item">{item.product.name}</td>
-                <td className="col-price">${item.lineTotal.toFixed(2)}</td>
-              </tr>
-            ))}
+            {Array.isArray(order.items) && 
+              order.items.map((item, index) => (
+                <tr key={index}>
+                  <td className="col-qty">{item.quantity}</td>
+                  <td className="col-item">{item.product.name}</td>
+                  <td className="col-price">${item.lineTotal.toFixed(2)}</td>
+                </tr>
+              ))}
           </tbody>
         </table>
       </section>
 
+      {/* ====== HERE IS THE SUMMARY SECTION ====== */}
       <section className="receipt-section receipt-summary">
-        {/* ... */}
+        <div className="summary-row">
+          <span>Subtotal:</span>
+          <span>${order.subTotal.toFixed(2)}</span>
+        </div>
+        {order.discountAmount > 0 && (
+          <div className="summary-row">
+            <span>Discount:</span>
+            <span>-${order.discountAmount.toFixed(2)}</span>
+          </div>
+        )}
+        {order.taxAmount > 0 && (
+          <div className="summary-row">
+            <span>Tax:</span>
+            <span>${order.taxAmount.toFixed(2)}</span>
+          </div>
+        )}
+        <div className="summary-row total">
+          <span>Total:</span>
+          <span>${order.grandTotal.toFixed(2)}</span>
+        </div>
       </section>
-      
+
       <section className="receipt-section receipt-payments">
         <h2>Payments</h2>
-         {/* This .map() is also safe now */}
-        {Array.isArray(order.payments) && order.payments.map((payment, index) => (
-          <div key={index} className="summary-row">
-            <span>{payment.method.replace('_', ' ')}:</span>
-            <span>${payment.amount.toFixed(2)}</span>
-          </div>
-        ))}
-         <div className="summary-row">
+        {Array.isArray(order.payments) &&
+          order.payments.map((payment, index) => (
+            <div key={index} className="summary-row">
+              <span>{payment.method.replace('_', ' ')}:</span>
+              <span>${payment.amount.toFixed(2)}</span>
+            </div>
+          ))}
+        <div className="summary-row">
           <span>Total Paid:</span>
           <span>${order.amountPaid.toFixed(2)}</span>
         </div>

@@ -24,6 +24,7 @@ import ExpensePage from './features/expenses/ExpensePage';
 import SettingsPage from './features/settings/SettingsPage';
 import ReturnsPage from './features/returns/ReturnsPage';
 import { AntdNoticeProvider } from './contexts/AntdNoticeContext'; 
+import TaxListPage from './features/taxes/TaxListPage';
 
 import { Role } from './common/enums/role.enum';
 
@@ -71,7 +72,8 @@ const AppRoutes: React.FC = () => {
 
           <Route element={<ProtectedRoute allowedRoles={[Role.ADMIN]} />}>
             <Route path="admin/users" element={<UserListPage />} />
-            <Route path="settings" element={<SettingsPage />} /> 
+            <Route path="settings" element={<SettingsPage />} />
+            <Route path="taxes" element={<TaxListPage />} /> 
           </Route>
 
           <Route path="reports" element={<ReportingPage />} />

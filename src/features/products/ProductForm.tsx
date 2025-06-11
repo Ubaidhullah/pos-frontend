@@ -4,27 +4,39 @@ import { Modal, Form, Input, InputNumber, Select, Button, message, Spin } from '
 import { GET_CATEGORIES } from '../../apollo/queries/categoryQueries';
 import { CREATE_PRODUCT, UPDATE_PRODUCT } from '../../apollo/mutations/productMutations';
 import { GET_PRODUCTS, GET_PRODUCT_BY_ID } from '../../apollo/queries/productQueries';
+import { GET_TAXES } from '../../apollo/queries/taxQueries';
 
 const { Option } = Select;
 const { TextArea } = Input;
 
 interface Category { id: string; name: string; }
-interface ProductDataForForm { // For initializing form
+interface TaxInfo { 
+  id: string; 
+  name: string; 
+  rate: number; 
+  isEnabled: boolean;
+  isDefault?: boolean;
+}
+
+interface ProductDataForForm {
   name: string;
   sku: string;
   price: number;
   description?: string;
   categoryId?: string;
   initialQuantity?: number;
+  taxId?: string; // ADDED: Tax ID field
 }
-interface ProductToEdit { // Type for product passed as prop
+
+interface ProductToEdit {
     id: string;
     name: string;
     sku: string;
     price: number;
     description?: string;
-    categoryId?: string; // ID of the category
+    categoryId?: string;
     inventoryItem?: { quantity: number };
+    taxId?: string; // ADDED: Tax ID field
 }
 
 interface ProductFormProps {
@@ -37,47 +49,44 @@ const ProductForm: React.FC<ProductFormProps> = ({ open, onClose, productToEdit 
   const [form] = Form.useForm<ProductDataForForm>();
 
   const { data: categoriesData, loading: categoriesLoading } = useQuery<{ categories: Category[] }>(GET_CATEGORIES);
+  
+  // ADDED: Tax rate query
+  const { data: taxesData, loading: taxesLoading } = useQuery<{ taxes: TaxInfo[] }>(GET_TAXES);
 
-  // Note: productDataForEdit is fetched by ProductListPage if needed, or can be fetched here.
-  // For simplicity, we assume productToEdit prop contains necessary data.
-  // If you need to fetch detailed data when editing:
   const { data: productDataForEdit, loading: productEditLoading } = useQuery(GET_PRODUCT_BY_ID, {
      variables: { id: productToEdit?.id },
-     skip: !productToEdit?.id || !open, // Skip if not editing or modal not open
+     skip: !productToEdit?.id || !open,
      onCompleted: (data) => {
-       if (data?.product && open) { // Ensure modal is open to prevent background form updates
+       if (data?.product && open) {
          form.setFieldsValue({
            name: data.product.name,
            sku: data.product.sku,
            price: data.product.price,
            description: data.product.description || undefined,
            categoryId: data.product.categoryId || undefined,
-           initialQuantity: data.product.inventoryItem?.quantity ?? 0, // This is current stock for edit
+           initialQuantity: data.product.inventoryItem?.quantity ?? 0,
+           taxId: data.product.taxId || undefined, // ADDED: Set taxId
          });
        }
      }
    });
 
-
   const [createProduct, { loading: createLoading }] = useMutation(CREATE_PRODUCT);
   const [updateProduct, { loading: updateLoading }] = useMutation(UPDATE_PRODUCT);
 
   useEffect(() => {
-    if (open) { // Only set form values when modal becomes visible
+    if (open) {
         if (productToEdit && !productEditLoading && productDataForEdit?.product) {
-             // If data from GET_PRODUCT_BY_ID is ready, use it
             form.setFieldsValue({
                 name: productDataForEdit.product.name,
                 sku: productDataForEdit.product.sku,
                 price: productDataForEdit.product.price,
                 description: productDataForEdit.product.description || undefined,
                 categoryId: productDataForEdit.product.categoryId || undefined,
-                // For edit, 'initialQuantity' field might represent current stock or not be directly editable here
-                // Let's assume we are showing current stock but not allowing direct update of it via this 'initialQuantity' field in edit mode
                 initialQuantity: productDataForEdit.product.inventoryItem?.quantity,
+                taxId: productDataForEdit.product.taxId || undefined, // ADDED
             });
         } else if (productToEdit) {
-            // Fallback to productToEdit prop if query is still loading or didn't run
             form.setFieldsValue({
                 name: productToEdit.name,
                 sku: productToEdit.sku,
@@ -85,47 +94,49 @@ const ProductForm: React.FC<ProductFormProps> = ({ open, onClose, productToEdit 
                 description: productToEdit.description || undefined,
                 categoryId: productToEdit.categoryId || undefined,
                 initialQuantity: productToEdit.inventoryItem?.quantity,
+                taxId: productToEdit.taxId || undefined, // ADDED
             });
         } else {
-            form.resetFields(); // For new product
-            form.setFieldsValue({ initialQuantity: 0 }); // Default initial quantity
+            form.resetFields();
+            const defaultTax = taxesData?.taxes.find(t => t.isDefault);
+            form.setFieldsValue({ 
+              initialQuantity: 0,
+              taxId: defaultTax?.id // ADDED: Set default tax for new products
+            });
         }
     }
-  }, [open, productToEdit, form, productDataForEdit, productEditLoading]);
-
+  }, [open, productToEdit, form, productDataForEdit, productEditLoading, taxesData]); // ADDED: taxesData dependency
 
   const handleFinish = async (values: ProductDataForForm) => {
     try {
       const inputValues = {
         ...values,
-        price: Number(values.price), // Ensure price is number
+        price: Number(values.price),
         initialQuantity: values.initialQuantity ? Number(values.initialQuantity) : undefined,
+        taxId: values.taxId || null, // ADDED: Send null if no tax selected
       };
-      // initialQuantity is only relevant for new products.
-      // For updates, inventory is managed separately or via specific fields if designed so.
+      
       if (!productToEdit) {
         if (inputValues.initialQuantity === undefined || inputValues.initialQuantity < 0) {
             inputValues.initialQuantity = 0;
         }
       } else {
-        // In an update, you might not send initialQuantity unless your backend handles it
-        // For this example, we assume 'initialQuantity' is NOT part of UpdateProductInput directly.
-        // Backend 'updateProduct' might handle other fields like name, price, category, etc.
-        // Stock updates are usually via InventoryModule.
         delete (inputValues as any).initialQuantity;
       }
 
-
       if (productToEdit && productToEdit.id) {
         await updateProduct({
-          variables: { id: productToEdit.id, updateProductInput: inputValues },
-          refetchQueries: [{ query: GET_PRODUCTS }], // Refetch list after update
+          variables: { 
+            id: productToEdit.id, 
+            updateProductInput: inputValues 
+          },
+          refetchQueries: [{ query: GET_PRODUCTS }],
         });
         message.success('Product updated successfully!');
       } else {
         await createProduct({
           variables: { createProductInput: inputValues },
-          refetchQueries: [{ query: GET_PRODUCTS }], // Refetch list after creation
+          refetchQueries: [{ query: GET_PRODUCTS }],
         });
         message.success('Product created successfully!');
       }
@@ -136,7 +147,7 @@ const ProductForm: React.FC<ProductFormProps> = ({ open, onClose, productToEdit 
     }
   };
 
-  const modalLoading = categoriesLoading || (productToEdit && productEditLoading) || createLoading || updateLoading;
+  const modalLoading = categoriesLoading || taxesLoading || (productToEdit && productEditLoading) || createLoading || updateLoading;
 
   return (
     <Modal
@@ -151,10 +162,9 @@ const ProductForm: React.FC<ProductFormProps> = ({ open, onClose, productToEdit 
           {productToEdit ? 'Save Changes' : 'Create Product'}
         </Button>,
       ]}
-      destroyOnClose // Important to reset form state when modal is closed and re-opened for "Add New"
+      destroyOnClose
     >
       {modalLoading && !open && <Spin tip="Loading..." style={{display: 'block', textAlign: 'center', padding: '20px'}}/>}
-      {/* Only render form if modal is open to ensure useEffect for form values works correctly */}
       {open && (
         <Form form={form} layout="vertical" name="productForm" onFinish={handleFinish} >
             <Form.Item
@@ -188,7 +198,22 @@ const ProductForm: React.FC<ProductFormProps> = ({ open, onClose, productToEdit 
                 ))}
             </Select>
             </Form.Item>
-            {!productToEdit && ( // Only allow setting initial quantity for new products
+            
+            {/* ADDED: Tax rate selector */}
+            <Form.Item name="taxId" label="Tax Rate" tooltip="Assign a tax rate to this product">
+                <Select loading={taxesLoading} placeholder="Select a tax rate" allowClear>
+                    <Option value={null}>No Tax</Option>
+                    {taxesData?.taxes
+                        .filter(t => t.isEnabled)
+                        .map(tax => (
+                            <Option key={tax.id} value={tax.id}>
+                                {tax.name} ({tax.rate}%)
+                            </Option>
+                        ))}
+                </Select>
+            </Form.Item>
+
+            {!productToEdit && (
             <Form.Item
                 name="initialQuantity"
                 label="Initial Stock Quantity"
@@ -197,7 +222,7 @@ const ProductForm: React.FC<ProductFormProps> = ({ open, onClose, productToEdit 
                 <InputNumber style={{ width: '100%' }} min={0} />
             </Form.Item>
             )}
-            {productToEdit && productDataForEdit?.product?.inventoryItem && ( // Display current stock for existing products (read-only in this form part)
+            {productToEdit && productDataForEdit?.product?.inventoryItem && (
                 <Form.Item label="Current Stock Quantity">
                     <Input value={productDataForEdit.product.inventoryItem.quantity} readOnly />
                 </Form.Item>

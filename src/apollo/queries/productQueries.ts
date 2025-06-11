@@ -14,6 +14,10 @@ export const GET_PRODUCTS = gql`
       inventoryItem {
         quantity
       }
+      tax { 
+        id
+        rate
+      }
     }
   }
 `;
@@ -29,6 +33,10 @@ export const GET_PRODUCT_BY_ID = gql`
       # categoryId # For pre-selecting in edit form
       inventoryItem {
         quantity # For initialQuantity in edit form if needed, though this is often set on create
+      }
+      tax { 
+        id
+        rate
       }
     }
   }
@@ -50,6 +58,10 @@ export const GET_PRODUCTS_WITH_INVENTORY = gql`
         id # ID of the inventory item itself
         quantity
         updatedAt # Useful to see when stock was last changed
+      }
+      tax { 
+        id
+        rate
       }
     }
   }

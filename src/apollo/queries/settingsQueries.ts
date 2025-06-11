@@ -15,6 +15,7 @@ export const GET_SETTINGS = gql`
       paymentNumberFormat
       quoteNumberFormat
       poNumberFormat
+      pricesEnteredWithTax
     }
   }
 `;

@@ -14,6 +14,7 @@ import {
   Select,
   Tooltip,
   Divider,
+  Radio
 } from 'antd';
 import { SaveOutlined, InfoCircleOutlined } from '@ant-design/icons';
 import { GET_SETTINGS } from '../../apollo/queries/settingsQueries';
@@ -24,7 +25,6 @@ import { Role } from '../../common/enums/role.enum';
 const { Title, Text } = Typography;
 const { Option } = Select;
 
-// Interface for the data returned by the GET_SETTINGS query
 interface SettingsData {
   companyName?: string;
   logoUrl?: string;
@@ -37,6 +37,7 @@ interface SettingsData {
   paymentNumberFormat?: string;
   quoteNumberFormat?: string;
   poNumberFormat?: string;
+  pricesEnteredWithTax: boolean;
 }
 
 const SettingsPage: React.FC = () => {
@@ -46,7 +47,6 @@ const SettingsPage: React.FC = () => {
   const { data, loading: queryLoading, error: queryError } = useQuery<{ settings: SettingsData }>(GET_SETTINGS);
   const [updateSettings, { loading: mutationLoading }] = useMutation(UPDATE_SETTINGS);
 
-  // When data is fetched, set the form fields
   useEffect(() => {
     if (data?.settings) {
       form.setFieldsValue(data.settings);
@@ -54,10 +54,14 @@ const SettingsPage: React.FC = () => {
   }, [data, form]);
 
   const onFinish = async (values: SettingsData) => {
+    const processedValues = {
+      ...values,
+      pricesEnteredWithTax: !!values.pricesEnteredWithTax,
+    };
     try {
       await updateSettings({
         variables: {
-          updateSettingsInput: values,
+          updateSettingsInput: processedValues,
         },
       });
       message.success('Settings updated successfully!');
@@ -66,7 +70,6 @@ const SettingsPage: React.FC = () => {
     }
   };
 
-  // List of timezones for the dropdown (this is a subset, you can use a library for a full list)
   const timezones = [
     'UTC',
     'Indian/Maldives',
@@ -77,10 +80,8 @@ const SettingsPage: React.FC = () => {
     'Europe/London',
     'America/New_York',
   ];
-  
-  // List of currencies (subset)
-  const currencies = ["MVR", "USD", "EUR", "GBP", "INR", "SGD"];
 
+  const currencies = ['MVR', 'USD', 'EUR', 'GBP', 'INR', 'SGD'];
 
   if (!hasRole([Role.ADMIN])) {
     return <Alert message="Access Denied" description="Only administrators can access this page." type="error" showIcon />;
@@ -106,7 +107,6 @@ const SettingsPage: React.FC = () => {
               </Form.Item>
 
               <Form.Item name="logoUrl" label="Company Logo URL" tooltip="Enter a public URL for your company logo.">
-                {/* In the future, this could be replaced with an AntD Upload component */}
                 <Input placeholder="https://example.com/logo.png" />
               </Form.Item>
 
@@ -117,36 +117,57 @@ const SettingsPage: React.FC = () => {
               <Form.Item name="salesEmail" label="Sales Email" tooltip="Used for CC/BCC on receipts and invoices.">
                 <Input placeholder="sales@yourcompany.com" />
               </Form.Item>
-              <Divider/>
+
+              <Divider />
               <Row gutter={16}>
                 <Col span={12}>
-                    <Form.Item name="baseCurrency" label="Base Currency" rules={[{ required: true }]}>
-                        <Select showSearch placeholder="Select base currency">
-                            {currencies.map(c => <Option key={c} value={c}>{c}</Option>)}
-                        </Select>
-                    </Form.Item>
+                  <Form.Item name="baseCurrency" label="Base Currency" rules={[{ required: true }]}>
+                    <Select showSearch placeholder="Select base currency">
+                      {currencies.map(c => <Option key={c} value={c}>{c}</Option>)}
+                    </Select>
+                  </Form.Item>
                 </Col>
                 <Col span={12}>
-                    <Form.Item name="displayCurrency" label="Display Currency (Optional)" tooltip="Show a second currency on bills for reference.">
-                        <Select showSearch placeholder="Select display currency" allowClear>
-                            {currencies.map(c => <Option key={c} value={c}>{c}</Option>)}
-                        </Select>
-                    </Form.Item>
+                  <Form.Item name="displayCurrency" label="Display Currency (Optional)" tooltip="Show a second currency on bills for reference.">
+                    <Select showSearch placeholder="Select display currency" allowClear>
+                      {currencies.map(c => <Option key={c} value={c}>{c}</Option>)}
+                    </Select>
+                  </Form.Item>
                 </Col>
               </Row>
 
               <Form.Item name="timezone" label="Timezone" rules={[{ required: true }]}>
                 <Select showSearch placeholder="Select timezone">
-                    {timezones.map(tz => <Option key={tz} value={tz}>{tz}</Option>)}
+                  {timezones.map(tz => <Option key={tz} value={tz}>{tz}</Option>)}
                 </Select>
               </Form.Item>
+
+              <Divider>Tax Settings</Divider>
+
+              <Form.Item
+                name="pricesEnteredWithTax"
+                label="Product Pricing Method"
+                tooltip="Determines how tax is calculated at checkout."
+                rules={[{ required: true, message: 'Please select a pricing method.' }]}
+              >
+                <Radio.Group>
+                  <Radio.Button value={false}>Prices are Exclusive of Tax</Radio.Button>
+                  <Radio.Button value={true}>Prices are Inclusive of Tax</Radio.Button>
+                </Radio.Group>
+              </Form.Item>
+
+              <Text type="secondary">
+                <b>Exclusive:</b> Tax is added on top of the product price at checkout. (e.g., $100 item + 5% tax = $105 total).<br />
+                <b>Inclusive:</b> Tax is already included in the product price. The system will back-calculate the tax portion for reporting. (e.g., $105 item includes $5 of tax).
+              </Text>
+
             </Card>
           </Col>
 
           <Col xs={24} lg={12}>
             <Card title="Document Numbering Formats">
-              <Text type="secondary" style={{display: 'block', marginBottom: '16px'}}>
-                  Use placeholders like <code>{'{sequence}'}</code>, <code>{'{year}'}</code>, <code>{'{month}'}</code>, <code>{'{day}'}</code>, and <code>{'{registerNumber}'}</code>.
+              <Text type="secondary" style={{ display: 'block', marginBottom: '16px' }}>
+                Use placeholders like <code>{'{sequence}'}</code>, <code>{'{year}'}</code>, <code>{'{month}'}</code>, <code>{'{day}'}</code>, and <code>{'{registerNumber}'}</code>.
               </Text>
 
               <Form.Item
@@ -184,8 +205,6 @@ const SettingsPage: React.FC = () => {
               >
                 <Input />
               </Form.Item>
-
-              {/* Add other numbering formats here... */}
             </Card>
           </Col>
         </Row>

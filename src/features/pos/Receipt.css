@@ -1,13 +1,19 @@
 /* This div will wrap our receipt component but will be hidden on screen */
-.receipt-container-hidden {
-    display: none;
+    .receipt-container-hidden {
+  position: absolute;
+  left: -9999px;
 }
+
 
 /* Print-specific styles */
 @media print {
     /* Hide everything on the page */
-    body * {
-        visibility: hidden;
+  
+    html, body {
+        height: 100vh !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: hidden;
     }
 
     /* Make the receipt container and its content visible */
