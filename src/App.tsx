@@ -27,6 +27,7 @@ import { AntdNoticeProvider } from './contexts/AntdNoticeContext';
 import TaxListPage from './features/taxes/TaxListPage';
 
 import { Role } from './common/enums/role.enum';
+import AuditLogPage from './features/audit-logs/AuditLogPage';
 
 const AppRoutes: React.FC = () => {
   const { isAuthenticated, isLoading } = useAuth();
@@ -74,6 +75,7 @@ const AppRoutes: React.FC = () => {
             <Route path="admin/users" element={<UserListPage />} />
             <Route path="settings" element={<SettingsPage />} />
             <Route path="taxes" element={<TaxListPage />} /> 
+            <Route path="admin/audit-log" element={<AuditLogPage />} />
           </Route>
 
           <Route path="reports" element={<ReportingPage />} />

@@ -17,7 +17,8 @@ import {
   PieChartOutlined,
   UndoOutlined,
   IdcardOutlined,
-  SettingOutlined
+  SettingOutlined,
+  FileSearchOutlined
    // For breadcrumb
 } from '@ant-design/icons';
 import { useAuth } from '../../contexts/AuthContext';
@@ -123,6 +124,7 @@ const MainLayout: React.FC = () => {
           getItem(<Link to="/admin/users">User Management</Link>, '/admin/users', <TeamOutlined />),
           getItem(<Link to="/settings">Settings</Link>, '/settings', <UserOutlined />),
           getItem(<Link to="/taxes">Tax Rates</Link>, '/taxes', <IdcardOutlined />),
+          getItem(<Link to="/admin/audit-log">Audit Log</Link>, '/admin/audit-log', <FileSearchOutlined />),
         ])
       );
     }
