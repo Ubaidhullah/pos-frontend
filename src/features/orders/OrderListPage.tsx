@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { useQuery } from '@apollo/client';
+import { useQuery, useLazyQuery } from '@apollo/client';
 import { Table, Tag, Button, DatePicker, Select, Space, Modal, List, Typography, message } from 'antd';
-import { EyeOutlined } from '@ant-design/icons';
-import moment from 'moment'; // For date formatting
+import { EyeOutlined, DownloadOutlined } from '@ant-design/icons';
+import dayjs, { Dayjs } from 'dayjs';
 import { GET_ORDERS } from '../../apollo/queries/orderQueries';
+import { EXPORT_ORDERS_AS_CSV } from '../../apollo/queries/exportQueries';
 import { useAuth } from '../../contexts/AuthContext';
-import { Role } from '../../common/enums/role.enum'; // If needed for filtering/actions
 
 const { RangePicker } = DatePicker;
 const { Option } = Select;
@@ -20,21 +20,33 @@ interface OrderData {
   id: string;
   totalAmount: number;
   status: string;
-  createdAt: string; // Or Date object if GraphQLISODateTime is used and parsed
+  createdAt: string;
   user: UserInfo;
   customer?: CustomerInfo;
   items: OrderItemData[];
 }
 
+const orderStatusColors: { [key: string]: string } = {
+  PENDING: 'gold',
+  COMPLETED: 'green',
+  CANCELLED: 'red',
+  PROCESSING: 'blue',
+  RETURNED: 'purple',
+};
+
 const OrderListPage: React.FC = () => {
   const [filters, setFilters] = useState<{
-    dateRange?: [moment.Moment | null, moment.Moment | null];
+    dateRange?: [Dayjs | null, Dayjs | null];
     status?: string;
   }>({});
-  const { hasRole } = useAuth(); // For role-specific actions if any
+
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState<OrderData | null>(null);
+
+  const { hasRole } = useAuth(); // If role-based features are added
 
   const queryVariables: any = {};
-  if (filters.dateRange && filters.dateRange[0] && filters.dateRange[1]) {
+  if (filters.dateRange?.[0] && filters.dateRange?.[1]) {
     queryVariables.startDate = filters.dateRange[0].startOf('day').toISOString();
     queryVariables.endDate = filters.dateRange[1].endOf('day').toISOString();
   }
@@ -47,15 +59,38 @@ const OrderListPage: React.FC = () => {
     notifyOnNetworkStatusChange: true,
   });
 
-  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
-  const [selectedOrder, setSelectedOrder] = useState<OrderData | null>(null);
+  const [exportOrders, { loading: exportLoading }] = useLazyQuery<
+    { exportOrdersAsCSV: string },
+    { startDate?: string; endDate?: string; status?: string }
+  >(EXPORT_ORDERS_AS_CSV, {
+    onCompleted: (exportData) => {
+      if (exportData?.exportOrdersAsCSV) {
+        const blob = new Blob([exportData.exportOrdersAsCSV], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', `orders-${dayjs().format('YYYY-MM-DD')}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        message.success('Order data exported successfully.');
+      } else {
+        message.warning('No data to export.');
+      }
+    },
+    onError: (err) => {
+      message.error(`Export failed: ${err.message}`);
+    },
+    fetchPolicy: 'no-cache',
+  });
 
-  const handleDateChange = (dates: any, dateStrings: [string, string]) => {
-    if (dates) {
-      setFilters(prev => ({ ...prev, dateRange: dates }));
-    } else {
-      setFilters(prev => ({ ...prev, dateRange: undefined }));
-    }
+  const handleExport = () => {
+    exportOrders({ variables: queryVariables });
+  };
+
+  const handleDateChange = (dates: [Dayjs | null, Dayjs | null] | null) => {
+    setFilters(prev => ({ ...prev, dateRange: dates || undefined }));
   };
 
   const handleStatusChange = (value?: string) => {
@@ -73,29 +108,18 @@ const OrderListPage: React.FC = () => {
 
   if (error) message.error(`Error loading orders: ${error.message}`);
 
-  const orderStatusColors: { [key: string]: string } = {
-    PENDING: 'gold',
-    COMPLETED: 'green',
-    CANCELLED: 'red',
-    PROCESSING: 'blue',
-    RETURNED: 'purple',
-    // Add more statuses and their colors
-  };
-
   const columns = [
-    { title: 'Order ID', dataIndex: 'id', key: 'id', render: (id: string) => <code>{id.substring(0, 8)}...</code> },
-    { title: 'Date', dataIndex: 'createdAt', key: 'createdAt', render: (date: string) => moment(date).format('YYYY-MM-DD HH:mm'), sorter: (a: OrderData, b: OrderData) => moment(a.createdAt).unix() - moment(b.createdAt).unix() },
+    { title: 'Order ID', dataIndex: 'id', key: 'id', render: (id: string) => <code>{id.slice(0, 8)}...</code> },
+    { title: 'Date', dataIndex: 'createdAt', key: 'createdAt', render: (date: string) => dayjs(date).format('YYYY-MM-DD HH:mm') },
     { title: 'Customer', dataIndex: ['customer', 'name'], key: 'customerName', render: (name?: string) => name || <Text type="secondary">N/A</Text> },
-    { title: 'Cashier', dataIndex: ['user', 'name'], key: 'userName', render: (name?: string, record?: OrderData) => name || record?.user.email || <Text type="secondary">N/A</Text> },
-    { title: 'Total', dataIndex: 'totalAmount', key: 'totalAmount', render: (amount: number) => `$${amount.toFixed(2)}`, sorter: (a: OrderData, b: OrderData) => a.totalAmount - b.totalAmount },
+    { title: 'Cashier', dataIndex: ['user', 'name'], key: 'userName', render: (name?: string, record?: OrderData) => name || record?.user.email },
+    { title: 'Total', dataIndex: 'totalAmount', key: 'totalAmount', render: (amount: number) => `$${amount.toFixed(2)}` },
     { title: 'Status', dataIndex: 'status', key: 'status', render: (status: string) => <Tag color={orderStatusColors[status] || 'default'}>{status.toUpperCase()}</Tag> },
     {
       title: 'Actions',
       key: 'actions',
       render: (_: any, record: OrderData) => (
-        <Button icon={<EyeOutlined />} onClick={() => showOrderDetailModal(record)}>
-          Details
-        </Button>
+        <Button icon={<EyeOutlined />} onClick={() => showOrderDetailModal(record)}>Details</Button>
       ),
     },
   ];
@@ -103,8 +127,9 @@ const OrderListPage: React.FC = () => {
   return (
     <div>
       <Title level={2}>Order History</Title>
+
       <Space style={{ marginBottom: 16 }} wrap>
-        <RangePicker onChange={handleDateChange} />
+        <RangePicker onChange={handleDateChange} value={filters.dateRange} />
         <Select
           placeholder="Filter by Status"
           onChange={handleStatusChange}
@@ -112,15 +137,16 @@ const OrderListPage: React.FC = () => {
           allowClear
           value={filters.status}
         >
-          <Option value="PENDING">Pending</Option>
-          <Option value="COMPLETED">Completed</Option>
-          <Option value="CANCELLED">Cancelled</Option>
-          <Option value="PROCESSING">Processing</Option>
-          <Option value="RETURNED">Returned</Option>
-          {/* Add other statuses */}
+          {Object.keys(orderStatusColors).map(status => (
+            <Option key={status} value={status}>{status}</Option>
+          ))}
         </Select>
         <Button type="primary" onClick={handleApplyFilters} loading={loading}>Apply Filters</Button>
+        <Button icon={<DownloadOutlined />} onClick={handleExport} loading={exportLoading}>
+          Export to CSV
+        </Button>
       </Space>
+
       <Table
         columns={columns}
         dataSource={data?.orders}
@@ -129,32 +155,33 @@ const OrderListPage: React.FC = () => {
         pagination={{ pageSize: 10 }}
         scroll={{ x: 'max-content' }}
       />
+
       <Modal
-        title={`Order Details - ID: ${selectedOrder?.id.substring(0,8)}...`}
+        title={`Order Details - ID: ${selectedOrder?.id.slice(0, 8)}...`}
         open={isDetailModalOpen}
         onCancel={() => setIsDetailModalOpen(false)}
-        footer={[<Button key="close" onClick={() => setIsDetailModalOpen(false)}>Close</Button>]}
+        footer={<Button onClick={() => setIsDetailModalOpen(false)}>Close</Button>}
         width={600}
       >
         {selectedOrder && (
           <>
-            <p><strong>Date:</strong> {moment(selectedOrder.createdAt).format('YYYY-MM-DD HH:mm:ss')}</p>
+            <p><strong>Date:</strong> {dayjs(selectedOrder.createdAt).format('YYYY-MM-DD HH:mm:ss')}</p>
             <p><strong>Customer:</strong> {selectedOrder.customer?.name || 'N/A'}</p>
             <p><strong>Cashier:</strong> {selectedOrder.user.name || selectedOrder.user.email}</p>
             <p><strong>Status:</strong> <Tag color={orderStatusColors[selectedOrder.status] || 'default'}>{selectedOrder.status.toUpperCase()}</Tag></p>
             <p><strong>Total Amount:</strong> ${selectedOrder.totalAmount.toFixed(2)}</p>
-            
+
             <List
-                dataSource={selectedOrder.items}
-                renderItem={item => (
-                    <List.Item>
-                        <List.Item.Meta
-                            title={item.product.name}
-                            description={`Qty: ${item.quantity} @ $${item.priceAtSale.toFixed(2)} each`}
-                        />
-                        <div>${(item.quantity * item.priceAtSale).toFixed(2)}</div>
-                    </List.Item>
-                )}
+              dataSource={selectedOrder.items}
+              renderItem={item => (
+                <List.Item>
+                  <List.Item.Meta
+                    title={item.product.name}
+                    description={`Qty: ${item.quantity} @ $${item.priceAtSale.toFixed(2)}`}
+                  />
+                  <div>${(item.quantity * item.priceAtSale).toFixed(2)}</div>
+                </List.Item>
+              )}
             />
           </>
         )}
