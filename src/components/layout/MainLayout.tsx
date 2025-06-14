@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { Layout, Menu, Button, Avatar, Typography, Dropdown, Space, theme as antdTheme, Breadcrumb } from 'antd';
+import {
+  Layout, Menu, Button, Avatar, Typography, Dropdown, Space, theme as antdTheme, Breadcrumb
+} from 'antd';
+import type { MenuProps } from 'antd';
 import {
   UserOutlined,
   LogoutOutlined,
@@ -18,20 +21,15 @@ import {
   UndoOutlined,
   IdcardOutlined,
   SettingOutlined,
-  FileSearchOutlined
-   // For breadcrumb
+  FileSearchOutlined,
 } from '@ant-design/icons';
 import { useAuth } from '../../contexts/AuthContext';
-import { Role } from '../../common/enums/role.enum'; // Your frontend Role enum
-// You might create a dedicated CSS file for MainLayout for more extensive styling
-// import './MainLayout.css';
+import { Role } from '../../common/enums/role.enum';
 
 const { Header, Content, Sider, Footer } = Layout;
 const { Text } = Typography;
-const { useToken } = antdTheme; // Ant Design v5 theme token hook
+const { useToken } = antdTheme;
 
-
-// Helper to create Menu items (same as before)
 function getItem(label: React.ReactNode, key: string, icon?: React.ReactNode, children?: any[], type?: 'group') {
   const item: any = { key, icon, label, type };
   if (children && children.length > 0) {
@@ -40,7 +38,6 @@ function getItem(label: React.ReactNode, key: string, icon?: React.ReactNode, ch
   return item;
 }
 
-// Breadcrumb generation helper (basic example)
 const breadcrumbNameMap: Record<string, string> = {
   '/': 'Dashboard / POS',
   '/customers': 'Customers',
@@ -62,199 +59,99 @@ const MainLayout: React.FC = () => {
   const { token: { colorBgContainer, borderRadiusLG, colorTextBase } } = useToken();
 
   const [collapsed, setCollapsed] = useState(false);
-  const [currentSelectedKey, setCurrentSelectedKey] = useState(location.pathname);
-
-  useEffect(() => {
-    // Ensure the key correctly reflects nested routes if your menu keys are more granular
-    // For example, if '/admin/products/new' should highlight '/admin/products' in menu
-    const pathSnippets = location.pathname.split('/').filter(i => i);
-    let activePath = `/${pathSnippets[0]}`;
-    if (pathSnippets.length > 1 && (pathSnippets[0] === 'admin' || pathSnippets[0] === 'management')) {
-        activePath = `/${pathSnippets[0]}/${pathSnippets[1]}`;
-    } else if (pathSnippets.length === 0) {
-        activePath = '/';
-    }
-    setCurrentSelectedKey(activePath);
-  }, [location.pathname]);
 
   const handleLogout = () => {
     logout();
     navigate('/login');
   };
 
-  const userMenuItems = [
-    getItem('Logout', 'logout', <LogoutOutlined />),
+  const userMenuItems: MenuProps['items'] = [
+    { key: 'logout', label: 'Logout', icon: <LogoutOutlined />, onClick: handleLogout },
   ];
 
-  const handleUserMenuClick = ({ key }: { key: string }) => {
-    if (key === 'logout') {
-      handleLogout();
-    }
-  };
+  const navItems: MenuProps['items'] = [];
 
-  const userMenu = (
-    <Menu onClick={handleUserMenuClick} items={userMenuItems} />
-  );
-
-  const navItems = [];
   if (user) {
-    navItems.push(getItem(<Link to="/">Dashboard</Link>, '/', <DashboardOutlined />));
-    navItems.push(getItem(<Link to="/pos">Point of Sale</Link>, '/pos', </* some other icon */ ShoppingCartOutlined />));
+    navItems.push({ key: '/', icon: <DashboardOutlined />, label: <Link to="/">Dashboard</Link> });
+    navItems.push({ key: '/pos', icon: <ShoppingCartOutlined />, label: <Link to="/pos">Point of Sale</Link> });
 
     if (hasRole([Role.ADMIN, Role.MANAGER, Role.CASHIER])) {
-      navItems.push(getItem(<Link to="/customers">Customers</Link>, '/customers', <SolutionOutlined />));
-      navItems.push(getItem(<Link to="/orders">Orders</Link>, '/orders', <ShoppingOutlined />));
-      navItems.push(getItem(<Link to="/reports">Reports</Link>, '/reports', <PieChartOutlined />));
-      navItems.push(getItem(<Link to="/expenses">Expenses</Link>, '/expenses', <ShoppingOutlined />));
-      navItems.push(getItem(<Link to="/returns">Process Return</Link>, '/returns', <UndoOutlined />));
+      navItems.push({ key: '/customers', icon: <SolutionOutlined />, label: <Link to="/customers">Customers</Link> });
+      navItems.push({ key: '/orders', icon: <ShoppingOutlined />, label: <Link to="/orders">Orders</Link> });
+      navItems.push({ key: '/reports', icon: <PieChartOutlined />, label: <Link to="/reports">Reports</Link> });
+      navItems.push({ key: '/expenses', icon: <ShoppingOutlined />, label: <Link to="/expenses">Expenses</Link> });
+      navItems.push({ key: '/returns', icon: <UndoOutlined />, label: <Link to="/returns">Process Return</Link> });
+    }
 
-    }
     if (hasRole([Role.ADMIN, Role.MANAGER])) {
-      navItems.push(getItem('Products & Stock', '/admin/products_stock', <AppstoreOutlined />, [
-        getItem(<Link to="/admin/products">Products</Link>, '/admin/products', <AppstoreOutlined />),
-        getItem(<Link to="/admin/categories">Categories</Link>, '/admin/categories', <BarcodeOutlined />),
-        getItem(<Link to="/admin/inventory">Inventory</Link>, '/admin/inventory', <ShoppingOutlined />),
-        getItem(<Link to="/admin/suppliers">Suppliers</Link>, '/admin/suppliers', <SolutionOutlined />),
-        getItem(<Link to="/admin/purchase-orders">Purchase Orders</Link>, '/admin/purchase-orders', <ShoppingOutlined />),
-      ]));
+      navItems.push({
+        key: '/admin/products_stock',
+        icon: <AppstoreOutlined />,
+        label: 'Products & Stock',
+        children: [
+          { key: '/admin/products', icon: <AppstoreOutlined />, label: <Link to="/admin/products">Products</Link> },
+          { key: '/admin/categories', icon: <BarcodeOutlined />, label: <Link to="/admin/categories">Categories</Link> },
+          { key: '/admin/inventory', icon: <ShoppingOutlined />, label: <Link to="/admin/inventory">Inventory</Link> },
+          { key: '/admin/suppliers', icon: <SolutionOutlined />, label: <Link to="/admin/suppliers">Suppliers</Link> },
+          { key: '/admin/purchase-orders', icon: <ShoppingOutlined />, label: <Link to="/admin/purchase-orders">Purchase Orders</Link> },
+        ]
+      });
     }
+
     if (hasRole([Role.ADMIN])) {
-      navItems.push(
-        getItem('Administration', '/admin/administration', <SettingOutlined />, [
-          getItem(<Link to="/admin/users">User Management</Link>, '/admin/users', <TeamOutlined />),
-          getItem(<Link to="/settings">Settings</Link>, '/settings', <UserOutlined />),
-          getItem(<Link to="/taxes">Tax Rates</Link>, '/taxes', <IdcardOutlined />),
-          getItem(<Link to="/admin/audit-log">Audit Log</Link>, '/admin/audit-log', <FileSearchOutlined />),
-        ])
-      );
+      navItems.push({
+        key: '/admin/administration',
+        icon: <SettingOutlined />,
+        label: 'Administration',
+        children: [
+          { key: '/admin/users', icon: <TeamOutlined />, label: <Link to="/admin/users">User Management</Link> },
+          { key: '/settings', icon: <UserOutlined />, label: <Link to="/settings">Settings</Link> },
+          { key: '/taxes', icon: <IdcardOutlined />, label: <Link to="/taxes">Tax Rates</Link> },
+          { key: '/admin/audit-log', icon: <FileSearchOutlined />, label: <Link to="/admin/audit-log">Audit Log</Link> },
+        ]
+      });
     }
   }
 
-  // Generate Breadcrumb items
   const pathSnippets = location.pathname.split('/').filter(i => i);
   const extraBreadcrumbItems = pathSnippets.map((_, index) => {
     const url = `/${pathSnippets.slice(0, index + 1).join('/')}`;
-    return (
-      <Breadcrumb.Item key={url}>
-        <Link to={url}>{breadcrumbNameMap[url] || pathSnippets[index]}</Link>
-      </Breadcrumb.Item>
-    );
+    return {
+      key: url,
+      title: <Link to={url}>{breadcrumbNameMap[url] || pathSnippets[index]}</Link>,
+    };
   });
+
   const breadcrumbItems = [
-    <Breadcrumb.Item key="home">
-      <Link to="/"><HomeOutlined /></Link>
-    </Breadcrumb.Item>,
-  ].concat(extraBreadcrumbItems);
+    { key: 'home', title: <Link to="/"><HomeOutlined /></Link> },
+    ...extraBreadcrumbItems
+  ];
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
-      <Sider
-        collapsible
-        collapsed={collapsed}
-        onCollapse={(value) => setCollapsed(value)}
-        // For a fixed sider, you might need additional CSS depending on the overall structure
-        // style={{
-        //   overflow: 'auto',
-        //   height: '100vh',
-        //   position: 'fixed',
-        //   left: 0,
-        //   top: 0,
-        //   bottom: 0,
-        // }}
-        breakpoint="lg" // AntD's built-in breakpoint for Sider collapse
-        collapsedWidth="80" // Or "0" to hide completely on mobile and use a Drawer
-      >
-        <div
-          style={{
-            height: '32px',
-            margin: '16px',
-            background: 'rgba(255, 255, 255, 0.2)',
-            textAlign: 'center',
-            lineHeight: '32px',
-            color: 'white',
-            borderRadius: '6px',
-            fontWeight: 'bold',
-            overflow: 'hidden',
-            whiteSpace: 'nowrap',
-          }}
-        >
+      <Sider collapsible collapsed={collapsed} onCollapse={setCollapsed}>
+        <div style={{ height: '32px', margin: '16px', background: 'rgba(255, 255, 255, 0.2)', textAlign: 'center', lineHeight: '32px', color: 'white', borderRadius: '6px', fontWeight: 'bold', overflow: 'hidden', whiteSpace: 'nowrap' }}>
           {collapsed ? 'POS' : 'POS System'}
         </div>
-        <Menu
-          theme="dark"
-          selectedKeys={[currentSelectedKey]}
-          mode="inline"
-          items={navItems}
-        />
+        <Menu theme="dark" selectedKeys={[location.pathname]} mode="inline" items={navItems} />
       </Sider>
-      <Layout
-        // className="site-layout" // Add a class for custom styling
-        // style={{ marginLeft: collapsed ? 80 : 200 }} // Adjust if Sider is fixed
-      >
-        <Header
-          style={{
-            padding: '0 24px', // More padding
-            background: colorBgContainer,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            borderBottom: `1px solid ${antdTheme.getDesignToken().colorBorderSecondary}`, // Subtle border
-            // position: 'sticky', // For sticky header
-            // top: 0,
-            // zIndex: 10,
-            // width: '100%', // if sticky
-          }}
-        >
-          <Button
-            type="text"
-            icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-            onClick={() => setCollapsed(!collapsed)}
-            style={{
-              fontSize: '16px',
-              width: 64,
-              height: 64,
-              color: colorTextBase,
-            }}
-          />
-          <div style={{ flexGrow: 1, marginLeft: '20px' }}>
-            {/* You could put a page title here, fetched from context or route */}
-            {/* <Title level={4} style={{ margin: 0 }}>Page Title</Title> */}
-          </div>
-          {user && (
-            <Space align="center">
-              <Text strong>Welcome, {user.name || user.email}</Text>
-              <Dropdown overlay={userMenu} trigger={['click']}>
-                <Avatar style={{ backgroundColor: '#87d068', cursor: 'pointer' }} icon={<UserOutlined />} />
-              </Dropdown>
-            </Space>
-          )}
+      <Layout>
+        <Header style={{ padding: '0 24px', background: colorBgContainer, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Button type="text" icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />} onClick={() => setCollapsed(!collapsed)} />
+          <Space align="center">
+            <Text strong>{user?.name || user?.email}</Text>
+            <Dropdown menu={{ items: userMenuItems }} trigger={['click']}>
+              <Avatar style={{ cursor: 'pointer' }} icon={<UserOutlined />} />
+            </Dropdown>
+          </Space>
         </Header>
-        <Content
-          style={{
-            margin: '16px', // Consistent margin
-            // padding: 24, // Moved to inner div for better control with background
-            // minHeight: 280, // AntD default, adjust as needed
-            overflow: 'initial', // Important for scroll within content
-          }}
-        >
-          <Breadcrumb style={{ margin: '0 0 16px 0' }}>
-            {breadcrumbItems}
-          </Breadcrumb>
-          <div
-            style={{
-              padding: 24,
-              background: colorBgContainer,
-              borderRadius: borderRadiusLG,
-              minHeight: 'calc(100vh - 64px - 32px - 69px - 58px)', // Adjust based on header/margin/footer heights
-              // Example: 100vh - HeaderHeight - ContentMarginTopBottom - FooterHeight - BreadcrumbHeight
-            }}
-          >
-            <Outlet /> {/* Your page content renders here */}
+        <Content style={{ margin: '16px' }}>
+          <Breadcrumb items={breadcrumbItems} style={{ margin: '0 0 16px 0' }} />
+          <div style={{ padding: 24, background: colorBgContainer, borderRadius: borderRadiusLG }}>
+            <Outlet />
           </div>
         </Content>
-        <Footer style={{ textAlign: 'center', background: '#f0f2f5', padding: '15px 50px' }}>
-          POS System ©{new Date().getFullYear()}
-        </Footer>
+        <Footer style={{ textAlign: 'center' }}>POS System ©{new Date().getFullYear()}</Footer>
       </Layout>
     </Layout>
   );

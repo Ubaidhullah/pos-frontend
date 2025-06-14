@@ -19,8 +19,10 @@ import {
   Radio,
   Alert,
   Empty,
+  Input,
+  Image
 } from 'antd';
-import { ShoppingCartOutlined, DeleteOutlined, DollarCircleOutlined, TagOutlined } from '@ant-design/icons';
+import { ShoppingCartOutlined, DeleteOutlined, DollarCircleOutlined, TagOutlined, SearchOutlined } from '@ant-design/icons';
 import { useReactToPrint } from 'react-to-print';
 // Local Imports
 import { GET_PRODUCTS } from '../../apollo/queries/productQueries';
@@ -41,8 +43,9 @@ const { Option } = Select;
 interface ProductData {
   id: string;
   name: string;
+  sku?: string;
   price: number;
-  imageUrl?: string;
+  imageUrls: string[];
   inventoryItem?: { quantity: number };
   taxes?: { rate: number; name: string; }[];
 }
@@ -89,6 +92,7 @@ const PosInterfacePage: React.FC = () => {
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | undefined>(undefined);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [lastCompletedOrder, setLastCompletedOrder] = useState<OrderDataForReceipt | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
 
   // --- Refs & Hooks ---
   const { hasRole } = useAuth();
@@ -125,6 +129,17 @@ const PosInterfacePage: React.FC = () => {
       messageApi.error(`Error creating order: ${err.message}`);
     }
   });
+
+  const filteredProducts = useMemo(() => {
+    if (!productsData?.products) return [];
+    if (!searchTerm) return productsData.products;
+    
+    const lowercasedTerm = searchTerm.toLowerCase();
+    return productsData.products.filter(product =>
+      product.name.toLowerCase().includes(lowercasedTerm) ||
+      product.sku?.toLowerCase().includes(lowercasedTerm)
+    );
+  }, [productsData, searchTerm]);
 
   const pricesEnteredWithTax = settingsData?.settings.pricesEnteredWithTax || false;
 
@@ -229,16 +244,36 @@ const PosInterfacePage: React.FC = () => {
       <Row gutter={[16, 16]}>
         <Col xs={24} lg={15}>
           <Title level={3}>Point of Sale</Title>
+          <Input
+            placeholder="Search products by name or SKU..."
+            prefix={<SearchOutlined />}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            value={searchTerm}
+            allowClear
+            style={{ marginBottom: 16 }}
+          />
           {productsLoading ? <div style={{textAlign: 'center', padding: '50px'}}><Spin tip="Loading Products..." size="large"/></div> : (
             <List
               grid={{ gutter: 16, xs: 1, sm: 2, md: 3, lg: 4, xl: 5 }}
-              dataSource={productsData?.products}
+              dataSource={filteredProducts} 
               renderItem={(product) => (
                 <List.Item>
                   <Card
                     hoverable
-                    cover={product.imageUrl ? <img alt={product.name} src={product.imageUrl} style={{height: 120, objectFit: 'cover'}}/> : <div style={{height: 120, background: '#f0f0f0', display: 'flex', alignItems: 'center', justifyContent: 'center'}}><Text type="secondary">No Image</Text></div>}
-                    styles={{ body: { padding: '12px' } }}
+                    cover={
+                      product.imageUrls && product.imageUrls.length > 0 ? (
+                        <Image
+                          alt={product.name}
+                          src={product.imageUrls[0]}
+                          style={{ height: 120, objectFit: 'cover' }}
+                          preview={false} // Disable preview on click for faster interaction
+                        />
+                      ) : (
+                        <div style={{height: 120, background: '#f0f0f0', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
+                          <Text type="secondary">No Image</Text>
+                        </div>
+                      )
+                    }                    styles={{ body: { padding: '12px' } }}
                     actions={[
                       <Button type="primary" icon={<ShoppingCartOutlined />} onClick={() => handleAddToCart(product)} disabled={(product.inventoryItem?.quantity ?? 0) <= 0}>Add</Button>
                     ]}

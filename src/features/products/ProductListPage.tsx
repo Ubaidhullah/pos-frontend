@@ -1,91 +1,122 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useQuery, useMutation } from '@apollo/client';
-import { Table, Button, Space, Modal, message, Tag, Typography, Popconfirm, Flex } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
+import { Table, Button, Space, message, Popconfirm, Tooltip, Typography, Tag, Image, Empty, Input, Card  } from 'antd'; 
+import { PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined } from '@ant-design/icons';
 import { GET_PRODUCTS } from '../../apollo/queries/productQueries';
 import { DELETE_PRODUCT } from '../../apollo/mutations/productMutations';
 import { useAuth } from '../../contexts/AuthContext';
 import { Role } from '../../common/enums/role.enum';
-import ProductForm from './ProductForm';
-//import ProductFormModal from './ProductFormModal'; // We'll create this next
+import ProductFormModal, { type ProductToEdit } from './ProductForm'; // We'll update the interface
 
 const { Title } = Typography;
 
-interface Product {
+// 👇 Update the interface to include imageUrls
+interface ProductListData {
   id: string;
   name: string;
   sku: string;
   price: number;
-  priceIncTax?: number;
-  standardCostPrice: number;
+  imageUrls: string[]; // <-- The array of image URLs
   category?: { name: string; };
   inventoryItem?: { quantity: number; };
-  taxes: { name: string; }[]; // Array of taxes
+  taxes: { name: string; }[];
 }
 
 const ProductListPage: React.FC = () => {
-  const { data, loading, error, refetch } = useQuery<{ products: Product[] }>(GET_PRODUCTS);
+  const { data, loading, error, refetch } = useQuery<{ products: ProductListData[] }>(GET_PRODUCTS);
   const [deleteProductMutation, { loading: deleteLoading }] = useMutation(DELETE_PRODUCT);
-  const { hasRole } = useAuth();
+  const { hasRole, user: currentUser } = useAuth();
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<ProductToEdit | null>(null);
+  const [searchTerm, setSearchTerm] = useState(''); 
 
-  const [isModalVisible, setIsModalVisible] = useState(false);
-  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const filteredProducts = useMemo(() => {
+    if (!data?.products) return [];
+    if (!searchTerm) return data.products;
+    
+    const lowercasedTerm = searchTerm.toLowerCase();
+    return data.products.filter(product =>
+      product.name.toLowerCase().includes(lowercasedTerm) ||
+      product.sku.toLowerCase().includes(lowercasedTerm) ||
+      product.category?.name.toLowerCase().includes(lowercasedTerm)
+    );
+  }, [data, searchTerm]);
+  
+  if (error) {
+    message.error(`Error loading products: ${error.message}`);
+  }
 
-  const showAddModal = () => {
-    setEditingProduct(null);
-    setIsModalVisible(true);
-  };
-
-  const showEditModal = (product: Product) => {
-    setEditingProduct(product);
-    setIsModalVisible(true);
-  };
-
-  const handleModalClose = (shouldRefetch?: boolean) => {
-    setIsModalVisible(false);
-    setEditingProduct(null);
-    if (shouldRefetch) {
-      refetch();
-    }
-  };
-
-  const handleDelete = async (productId: string) => {
+  const handleDelete = async (product: ProductListData) => {
     try {
+      // Pass the current user to the service via the resolver for audit logging
       await deleteProductMutation({
-        variables: { id: productId },
+        variables: { id: product.id }, // The resolver will get the user from context
         refetchQueries: [{ query: GET_PRODUCTS }],
       });
-      message.success('Product deleted successfully');
+      message.success(`Product "${product.name}" deleted successfully`);
     } catch (e: any) {
       message.error(`Error deleting product: ${e.message}`);
     }
   };
 
+  const showEditModal = (product: ProductListData) => {
+    // Map the list data to the shape the form expects
+    const productToEdit: ProductToEdit = {
+      ...product,
+      categoryId: (product as any).category?.id, // Get categoryId if it exists in your full query for editing
+      taxes: (product as any).taxes?.map((t: any) => ({id: t.id})),
+    };
+    setEditingProduct(productToEdit);
+    setIsModalOpen(true);
+  };
+
+
   const columns = [
-    { title: 'Name', dataIndex: 'name', key: 'name' /* ... */ },
+    // 👇 NEW "Image" COLUMN
+    {
+        title: 'Image',
+        dataIndex: 'imageUrls',
+        key: 'image',
+        width: 80,
+        render: (imageUrls: string[]) => (
+            imageUrls && imageUrls.length > 0 ? (
+                <Image
+                    width={50}
+                    src={imageUrls[0]} // Show the first image as a thumbnail
+                    preview={{ src: imageUrls[0] }} // Clicking it will show a larger preview
+                />
+            ) : (
+                <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={false} />
+            )
+        )
+    },
+    { title: 'Name', dataIndex: 'name', key: 'name', sorter: (a: ProductListData, b: ProductListData) => a.name.localeCompare(b.name) },
     { title: 'SKU', dataIndex: 'sku', key: 'sku' },
     { title: 'Category', dataIndex: ['category', 'name'], key: 'categoryName', render: (name?: string) => name || <Tag>N/A</Tag> },
-    { title: 'Stock', dataIndex: ['inventoryItem', 'quantity'], key: 'stock', render: (qty?: number) => qty ?? <Tag>N/A</Tag> },
-    { title: 'Price (ex. Tax)', dataIndex: 'price', key: 'price', render: (price: number) => `$${price.toFixed(2)}` },
-    { title: 'Taxes', dataIndex: 'taxes', key: 'taxes', render: (taxes: {name: string}[]) => taxes.map(t => <Tag key={t.name}>{t.name}</Tag>) },
+    { title: 'Stock', dataIndex: ['inventoryItem', 'quantity'], key: 'stock', align: 'center' as 'center', sorter: (a: ProductListData, b: ProductListData) => (a.inventoryItem?.quantity ?? 0) - (b.inventoryItem?.quantity ?? 0) },
+    { title: 'Price', dataIndex: 'price', key: 'price', align: 'right' as 'right', render: (price: number) => `$${price.toFixed(2)}`, sorter: (a: { price: number; }, b: { price: number; }) => a.price - b.price },
     {
       title: 'Actions',
       key: 'actions',
-      render: (_: any, record: Product) => (
-        <Space size="middle">
+      align: 'center' as 'center',
+      render: (_: any, record: ProductListData) => (
+        <Space size="small">
           {hasRole([Role.ADMIN, Role.MANAGER]) && (
-            <Button icon={<EditOutlined />} onClick={() => showEditModal(record)}>Edit</Button>
+            <Tooltip title="Edit Product">
+              <Button size="small" icon={<EditOutlined />} onClick={() => showEditModal(record)} />
+            </Tooltip>
           )}
           {hasRole([Role.ADMIN]) && (
             <Popconfirm
-              title="Delete the product"
-              description="Are you sure you want to delete this product?"
-              onConfirm={() => handleDelete(record.id)}
-              okText="Yes"
-              cancelText="No"
-              disabled={deleteLoading}
+              title={`Delete "${record.name}"?`}
+              description="This action cannot be undone."
+              onConfirm={() => handleDelete(record)}
+              okText="Yes, Delete"
+              okButtonProps={{ loading: deleteLoading }}
             >
-              <Button icon={<DeleteOutlined />} danger loading={deleteLoading}>Delete</Button>
+              <Tooltip title="Delete Product">
+                <Button size="small" icon={<DeleteOutlined />} danger />
+              </Tooltip>
             </Popconfirm>
           )}
         </Space>
@@ -93,35 +124,39 @@ const ProductListPage: React.FC = () => {
     },
   ];
 
-  if (error) {
-    message.error(`Error loading products: ${error.message}`);
-    return <p>Error loading products.</p>; // Or a more sophisticated error display
-  }
-
   return (
     <div>
-      <Flex justify="space-between" align="center" style={{ marginBottom: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <Title level={2} style={{ margin: 0 }}>Product Management</Title>
-        {hasRole([Role.ADMIN, Role.MANAGER]) && (
-          <Button type="primary" icon={<PlusOutlined />} onClick={showAddModal}>
-            Add New Product
-          </Button>
-        )}
-      </Flex>
+        <Button type="primary" icon={<PlusOutlined />} onClick={() => { setEditingProduct(null); setIsModalOpen(true); }}>
+          Add Product
+        </Button>
+      </div>
+
+      {/* 👇 New Search Input */}
+      <Card style={{ marginBottom: 16 }}>
+        <Input
+          placeholder="Search by name, SKU, or category..."
+          prefix={<SearchOutlined />}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          value={searchTerm}
+          allowClear
+        />
+      </Card>
+
       <Table
         columns={columns}
-        dataSource={data?.products}
+        dataSource={filteredProducts} // 👈 Use the filtered list
         loading={loading}
         rowKey="id"
-        // pagination={{ pageSize: 10 }} // Example pagination
+        pagination={{ pageSize: 10, showSizeChanger: true }}
+        scroll={{ x: 'max-content' }}
       />
-      {/* The ProductForm modal, its behavior determined by editingProduct */}
-      <ProductForm
-        open={isModalVisible}
-        onClose={handleModalClose}
-        // productToEdit={editingProduct} // Pass null for create, or product object for edit
+      <ProductFormModal
+        open={isModalOpen}
+        onClose={() => { setIsModalOpen(false); setEditingProduct(null); }}
+        productToEdit={editingProduct}
       />
-    
     </div>
   );
 };

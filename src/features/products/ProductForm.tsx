@@ -1,13 +1,18 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Modal, Form, Input, Button, message, InputNumber, Select, Row, Col, Divider, Space, Tooltip,
+  Modal, Form, Input, Button, message, InputNumber, Select, Row, Col, Divider, Space, Tooltip, Upload,
 } from 'antd';
+import type { UploadFile, UploadProps } from 'antd';
 import { useQuery, useMutation } from '@apollo/client';
+import { PlusOutlined, LoadingOutlined } from '@ant-design/icons';
+
+// --- Local Imports ---
 import { GET_CATEGORIES } from '../../apollo/queries/categoryQueries';
 import { GET_TAXES } from '../../apollo/queries/taxQueries';
+import { UPLOAD_PRODUCT_IMAGE } from '../../apollo/mutations/fileMutations';
 import { CREATE_PRODUCT, UPDATE_PRODUCT } from '../../apollo/mutations/productMutations';
-import { GET_PRODUCTS, GET_PRODUCT_BY_ID } from '../../apollo/queries/productQueries';
-import { PlusOutlined, DeleteOutlined } from '@ant-design/icons';
+import { GET_PRODUCTS } from '../../apollo/queries/productQueries';
+import { useAntdNotice } from '../../contexts/AntdNoticeContext';
 
 const { Option } = Select;
 const { TextArea } = Input;
@@ -27,11 +32,12 @@ interface ProductFormValues {
   standardCostPrice: number;
   outletReorderLimit?: number;
   taxIds?: string[];
-  imageUrls: string[];
+  // The 'imageUrls' field on the form is now specifically for the AntD Upload component
+  imageUrls: UploadFile[];
   initialQuantity?: number;
 }
 
-export interface ProductToEdit { // Data shape passed to the modal for editing
+export interface ProductToEdit {
   id: string;
   name: string;
   sku?: string;
@@ -43,7 +49,7 @@ export interface ProductToEdit { // Data shape passed to the modal for editing
   standardCostPrice?: number;
   outletReorderLimit?: number;
   imageUrls?: string[];
-  taxes?: { id: string; }[]; // We only need the IDs for pre-filling the Select
+  taxes?: { id: string; }[];
 }
 
 interface ProductFormModalProps {
@@ -52,99 +58,131 @@ interface ProductFormModalProps {
   productToEdit?: ProductToEdit | null;
 }
 
-
 const ProductFormModal: React.FC<ProductFormModalProps> = ({ open, onClose, productToEdit }) => {
   const [form] = Form.useForm<ProductFormValues>();
-  
-  // --- Data Fetching ---
+  const { messageApi } = useAntdNotice();
+  const [fileList, setFileList] = useState<UploadFile[]>([]);
+
+  // --- GraphQL ---
   const { data: categoriesData, loading: categoriesLoading } = useQuery<{ categories: CategoryInfo[] }>(GET_CATEGORIES);
   const { data: taxesData, loading: taxesLoading } = useQuery<{ taxes: TaxInfo[] }>(GET_TAXES);
   
-  // --- Mutations ---
+  const [uploadImage, { loading: uploadLoading }] = useMutation<{ uploadProductImage: string }, { file: any }>(UPLOAD_PRODUCT_IMAGE);
   const [createProduct, { loading: createLoading }] = useMutation(CREATE_PRODUCT);
   const [updateProduct, { loading: updateLoading }] = useMutation(UPDATE_PRODUCT);
-
+  
   const isEditMode = !!productToEdit;
   const isLoading = createLoading || updateLoading;
 
-  // --- Price Calculation Logic ---
-  const handlePriceChange = (changedValues: Partial<ProductFormValues>) => {
-    const allFormValues = form.getFieldsValue();
-    const selectedTaxIds = allFormValues.taxIds || [];
-    const availableTaxes = taxesData?.taxes || [];
-
-    const totalTaxRate = selectedTaxIds.reduce((sum, taxId) => {
-      const tax = availableTaxes.find(t => t.id === taxId);
-      return sum + (tax?.rate || 0);
-    }, 0);
-    
-    if (totalTaxRate <= 0) {
-      // If no tax, both prices are the same
-      if (changedValues.price !== undefined) form.setFieldsValue({ priceIncTax: changedValues.price });
-      if (changedValues.priceIncTax !== undefined) form.setFieldsValue({ price: changedValues.priceIncTax });
-      return;
-    }
-    
-    const taxMultiplier = 1 + totalTaxRate / 100;
-
-    if (changedValues.price !== undefined && changedValues.price !== null) {
-      // If "Price (before tax)" was changed, calculate the other
-      const newPriceIncTax = changedValues.price * taxMultiplier;
-      form.setFieldsValue({ priceIncTax: parseFloat(newPriceIncTax.toFixed(2)) });
-    } else if (changedValues.priceIncTax !== undefined && changedValues.priceIncTax !== null) {
-      // If "Price (inc. tax)" was changed, calculate the other
-      const newPrice = changedValues.priceIncTax / taxMultiplier;
-      form.setFieldsValue({ price: parseFloat(newPrice.toFixed(2)) });
-    }
-  };
-
-  // --- Form Setup & Submission ---
+  // --- Form Setup & Price Logic ---
   useEffect(() => {
     if (open) {
       if (productToEdit) {
+        // When editing, convert the array of URL strings into AntD's UploadFile format
+        const existingImages: UploadFile[] = (productToEdit.imageUrls || []).map((url, index) => ({
+          uid: `${-1 - index}`, // Use a unique negative ID for existing files
+          name: url.split('/').pop() || `image-${index}.png`,
+          status: 'done',
+          url: url,
+          thumbUrl: url,
+        }));
+        
+        setFileList(existingImages);
         form.setFieldsValue({
           ...productToEdit,
           taxIds: productToEdit.taxes?.map(t => t.id) || [],
-          imageUrls: productToEdit.imageUrls || [],
+          imageUrls: existingImages,
         });
       } else {
         form.resetFields();
-        form.setFieldsValue({ imageUrls: [''] }); // Start with one empty image URL field
+        setFileList([]);
       }
     }
   }, [open, productToEdit, form]);
 
-  const onFinish = async (values: ProductFormValues) => {
-    // Filter out empty image URLs before submission
-    const processedValues = {
-      ...values,
-      imageUrls: values.imageUrls?.filter(url => url && url.trim() !== '') || [],
-    };
-    
-    try {
-      const mutationOptions = {
-        refetchQueries: [{ query: GET_PRODUCTS }],
-      };
-
-      if (isEditMode) {
-        await updateProduct({
-          variables: { id: productToEdit!.id, updateProductInput: processedValues },
-          ...mutationOptions,
-        });
-        message.success('Product updated successfully!');
-      } else {
-        await createProduct({
-          variables: { createProductInput: processedValues },
-          ...mutationOptions,
-        });
-        message.success('Product created successfully!');
-      }
-      onClose();
-    } catch (e: any) {
-      message.error(`Operation failed: ${e.message}`);
+  const handlePriceChange = (changedValues: Partial<ProductFormValues>, allValues: ProductFormValues) => {
+    const selectedTaxIds = allValues.taxIds || [];
+    const availableTaxes = taxesData?.taxes || [];
+    const totalTaxRate = selectedTaxIds.reduce((sum, taxId) => {
+      const tax = availableTaxes.find(t => t.id === taxId);
+      return sum + (tax?.rate || 0);
+    }, 0);
+    if (totalTaxRate <= 0) {
+      if (changedValues.price !== undefined) form.setFieldsValue({ priceIncTax: changedValues.price });
+      if (changedValues.priceIncTax !== undefined) form.setFieldsValue({ price: changedValues.priceIncTax });
+      return;
+    }
+    const taxMultiplier = 1 + totalTaxRate / 100;
+    if (changedValues.price !== undefined && changedValues.price !== null) {
+      form.setFieldsValue({ priceIncTax: parseFloat((changedValues.price * taxMultiplier).toFixed(2)) });
+    } else if (changedValues.priceIncTax !== undefined && changedValues.priceIncTax !== null) {
+      form.setFieldsValue({ price: parseFloat((changedValues.priceIncTax / taxMultiplier).toFixed(2)) });
     }
   };
 
+    const handleCustomRequest = async (options: any) => {
+    const { file, onSuccess, onError } = options;
+    try {
+      const { data } = await uploadImage({ variables: { file } });
+      if (data?.uploadProductImage) {
+        // On success, the response body is the URL string. AntD will attach this to the file object.
+        onSuccess(data.uploadProductImage, file);
+      } else { throw new Error('Image URL not returned from server.'); }
+    } catch (err: any) {
+      onError(err);
+      messageApi.error(`${file.name} upload failed: ${err.message}`);
+    }
+  };
+
+  // --- Custom Upload Handler ---
+  const handleUploadChange: UploadProps['onChange'] = ({ file, fileList: newFileList }) => {
+    // When a file is done uploading, its `response` property is populated by our `onSuccess` call.
+    // We explicitly set the `url` property so the preview link works correctly.
+    const processedList = newFileList.map(f => {
+      if (f.response) {
+        f.url = f.response; // The response from our customRequest IS the URL.
+      }
+      return f;
+    });
+    setFileList(processedList);
+  };
+
+
+
+  // --- Form Submission ---
+  const onFinish = async (values: ProductFormValues) => {
+    // FIX: Use the 'fileList' from our synchronized state, which correctly
+    // contains the final URLs after upload.
+    const finalImageUrls = fileList
+      .filter(file => file.status === 'done' && file.url)
+      .map(file => file.url!); // The '!' asserts that url is not undefined here.
+    
+    // Construct the final object to send to the backend
+    const processedValues = {
+      ...values,
+      imageUrls: finalImageUrls, // Override the form's 'imageUrls' with our clean array of strings
+    };
+    
+    try {
+      const mutationOptions = { refetchQueries: [{ query: GET_PRODUCTS }] };
+      if (isEditMode) {
+        await updateProduct({ variables: { id: productToEdit!.id, updateProductInput: processedValues }, ...mutationOptions });
+        messageApi.success('Product updated successfully!');
+      } else {
+        await createProduct({ variables: { createProductInput: processedValues }, ...mutationOptions });
+        messageApi.success('Product created successfully!');
+      }
+      onClose();
+    } catch (e: any) {
+      messageApi.error(`Operation failed: ${e.message}`);
+    }
+  };
+  const uploadButton = (
+    <div>
+      {uploadLoading ? <LoadingOutlined /> : <PlusOutlined />}
+      <div style={{ marginTop: 8 }}>Upload</div>
+    </div>
+  );
 
   return (
     <Modal
@@ -237,26 +275,29 @@ const ProductFormModal: React.FC<ProductFormModalProps> = ({ open, onClose, prod
         </Row>
 
         <Divider>Images</Divider>
-        <Form.List name="imageUrls">
-            {(fields, { add, remove }) => (
-                <>
-                {fields.map((field, index) => (
-                    <Space key={field.key} style={{ display: 'flex', marginBottom: 8 }} align="baseline">
-                        <Form.Item {...field} label={`Image URL ${index + 1}`} style={{flexGrow: 1}}>
-                            <Input placeholder="https://example.com/image.jpg" />
-                        </Form.Item>
-                        <DeleteOutlined onClick={() => remove(field.name)} />
-                    </Space>
-                ))}
-                <Form.Item>
-                    <Button type="dashed" onClick={() => add('')} block icon={<PlusOutlined />}>
-                    Add Image URL
-                    </Button>
-                </Form.Item>
-                </>
-            )}
-        </Form.List>
-
+       <Form.Item label="Product Images" valuePropName="fileList" getValueFromEvent={(e) => {
+            // This function helps Form get the value from Upload's onChange event.
+            if (Array.isArray(e)) return e;
+            return e && e.fileList;
+        }}>
+        <Upload
+                listType="picture-card"
+                fileList={fileList} // Controlled by our state
+                customRequest={handleCustomRequest}
+                onChange={handleUploadChange}
+                onPreview={(file) => window.open(file.url, '_blank')}
+                onRemove={(file) => {
+                    // When removing a file, we just update our local state.
+                    // The final list of URLs is built during submission.
+                    const newFileList = fileList.filter(f => f.uid !== file.uid);
+                    setFileList(newFileList);
+                    return true;
+                }}
+                multiple
+            >
+                {fileList.length >= 8 ? null : uploadButton}
+            </Upload>
+      </Form.Item>
       </Form>
     </Modal>
   );
