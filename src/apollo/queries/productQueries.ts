@@ -7,15 +7,19 @@ export const GET_PRODUCTS = gql`
       name
       sku
       price
-      description
-      category{
-        name
-      }
+      priceIncTax
+      standardCostPrice
+      imageUrls
       inventoryItem {
         quantity
       }
-      tax { 
+      category {
         id
+        name
+      }
+      taxes {
+        id
+        name
         rate
       }
     }
@@ -28,14 +32,17 @@ export const GET_PRODUCT_BY_ID = gql`
       id
       name
       sku
-      price
+      barcode
       description
-      # categoryId # For pre-selecting in edit form
-      inventoryItem {
-        quantity # For initialQuantity in edit form if needed, though this is often set on create
-      }
-      tax { 
+      price
+      priceIncTax
+      outletReorderLimit
+      standardCostPrice
+      imageUrls
+      categoryId
+      taxes { # Fetch the full tax objects to pre-fill the multi-select
         id
+        name
         rate
       }
     }

@@ -4,8 +4,6 @@ export const CREATE_PRODUCT = gql`
   mutation CreateProduct($createProductInput: CreateProductInput!) {
     createProduct(createProductInput: $createProductInput) {
       id
-      name
-      sku
     }
   }
 `;
@@ -14,8 +12,6 @@ export const UPDATE_PRODUCT = gql`
   mutation UpdateProduct($id: ID!, $updateProductInput: UpdateProductInput!) {
     updateProduct(id: $id, updateProductInput: $updateProductInput) {
       id
-      name
-      sku
     }
   }
 `;

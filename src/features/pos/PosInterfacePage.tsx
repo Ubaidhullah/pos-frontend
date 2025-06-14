@@ -44,7 +44,7 @@ interface ProductData {
   price: number;
   imageUrl?: string;
   inventoryItem?: { quantity: number };
-  tax?: { rate: number };
+  taxes?: { rate: number; name: string; }[];
 }
 
 interface CustomerData {
@@ -168,6 +168,7 @@ const PosInterfacePage: React.FC = () => {
 
   const handleAddToCart = (product: ProductData) => {
     if ((product.inventoryItem?.quantity ?? 0) <= 0) { messageApi.warning(`${product.name} is out of stock!`); return; }
+    const totalTaxRate = product.taxes?.reduce((sum, tax) => sum + tax.rate, 0) || 0;
     setCart((prevCart) => {
       const existingItem = prevCart.find(item => item.productId === product.id);
       if (existingItem) {
@@ -181,7 +182,7 @@ const PosInterfacePage: React.FC = () => {
         productId: product.id, name: product.name, quantity: 1, price: product.price,
         stock: product.inventoryItem?.quantity ?? 0,
         discountType: DiscountType.NONE, discountValue: 0,
-        taxRate: product.tax?.rate || 0,
+        taxRate: totalTaxRate,
       }];
     });
   };

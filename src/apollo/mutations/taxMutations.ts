@@ -15,7 +15,7 @@ export const UPDATE_TAX = gql`
       id
       name
       isEnabled
-      isDefault
+      # isDefault
     }
   }
 `;

@@ -8,7 +8,6 @@ export const GET_TAXES = gql`
       rate
       description
       isEnabled
-      isDefault
     }
   }
 `;

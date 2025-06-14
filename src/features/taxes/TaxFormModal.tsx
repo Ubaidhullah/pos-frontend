@@ -11,7 +11,7 @@ interface TaxFormData {
   rate: number;
   description?: string;
   isEnabled: boolean;
-  isDefault: boolean;
+  // isDefault: boolean;
 }
 
 export interface TaxToEdit extends TaxFormData {
@@ -37,7 +37,7 @@ const TaxFormModal: React.FC<TaxFormModalProps> = ({ open, onClose, taxToEdit })
       } else {
         // Set defaults for a new tax rate
         form.resetFields();
-        form.setFieldsValue({ isEnabled: true, isDefault: false });
+        form.setFieldsValue({ isEnabled: true});
       }
     }
   }, [open, taxToEdit, form]);
@@ -105,9 +105,9 @@ const TaxFormModal: React.FC<TaxFormModalProps> = ({ open, onClose, taxToEdit })
             <Form.Item name="isEnabled" label="Enabled" valuePropName="checked">
                 <Switch />
             </Form.Item>
-            <Form.Item name="isDefault" label="Set as Default" valuePropName="checked" tooltip="If checked, this tax will be the default for new products and any other defaults will be unset.">
+            {/* <Form.Item name="isDefault" label="Set as Default" valuePropName="checked" tooltip="If checked, this tax will be the default for new products and any other defaults will be unset.">
                 <Switch />
-            </Form.Item>
+            </Form.Item> */}
         </Space>
       </Form>
     </Modal>

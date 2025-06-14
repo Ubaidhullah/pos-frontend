@@ -16,9 +16,11 @@ interface Product {
   name: string;
   sku: string;
   price: number;
-  description?: string;
-  category?: { id: string; name: string };
-  inventoryItem?: { quantity: number };
+  priceIncTax?: number;
+  standardCostPrice: number;
+  category?: { name: string; };
+  inventoryItem?: { quantity: number; };
+  taxes: { name: string; }[]; // Array of taxes
 }
 
 const ProductListPage: React.FC = () => {
@@ -60,11 +62,12 @@ const ProductListPage: React.FC = () => {
   };
 
   const columns = [
-    { title: 'Name', dataIndex: 'name', key: 'name', sorter: (a: Product, b: Product) => a.name.localeCompare(b.name) },
+    { title: 'Name', dataIndex: 'name', key: 'name' /* ... */ },
     { title: 'SKU', dataIndex: 'sku', key: 'sku' },
-    { title: 'Price', dataIndex: 'price', key: 'price', render: (price: number) => `$${price.toFixed(2)}`, sorter: (a: Product, b: Product) => a.price - b.price },
-    { title: 'Category', dataIndex: ['category', 'name'], key: 'category', render: (categoryName: string) => categoryName || <Tag>N/A</Tag> },
-    { title: 'Stock', dataIndex: ['inventoryItem', 'quantity'], key: 'stock', render: (quantity: number) => quantity ?? <Tag>N/A</Tag>, sorter: (a: Product, b: Product) => (a.inventoryItem?.quantity || 0) - (b.inventoryItem?.quantity || 0) },
+    { title: 'Category', dataIndex: ['category', 'name'], key: 'categoryName', render: (name?: string) => name || <Tag>N/A</Tag> },
+    { title: 'Stock', dataIndex: ['inventoryItem', 'quantity'], key: 'stock', render: (qty?: number) => qty ?? <Tag>N/A</Tag> },
+    { title: 'Price (ex. Tax)', dataIndex: 'price', key: 'price', render: (price: number) => `$${price.toFixed(2)}` },
+    { title: 'Taxes', dataIndex: 'taxes', key: 'taxes', render: (taxes: {name: string}[]) => taxes.map(t => <Tag key={t.name}>{t.name}</Tag>) },
     {
       title: 'Actions',
       key: 'actions',
@@ -116,7 +119,7 @@ const ProductListPage: React.FC = () => {
       <ProductForm
         open={isModalVisible}
         onClose={handleModalClose}
-        productToEdit={editingProduct} // Pass null for create, or product object for edit
+        // productToEdit={editingProduct} // Pass null for create, or product object for edit
       />
     
     </div>
