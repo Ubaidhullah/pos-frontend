@@ -56,6 +56,7 @@ export const GET_PURCHASE_ORDER_BY_ID = gql`
       totalAmount
       notes
       shippingCost
+      landingCosts
       taxes
       supplier {
         id

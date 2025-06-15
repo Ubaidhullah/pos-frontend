@@ -66,8 +66,9 @@ export const GET_PRODUCTS_WITH_INVENTORY = gql`
         quantity
         updatedAt # Useful to see when stock was last changed
       }
-      tax { 
+      taxes { # Fetch the full tax objects to pre-fill the multi-select
         id
+        name
         rate
       }
     }

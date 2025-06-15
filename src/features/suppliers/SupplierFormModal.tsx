@@ -3,6 +3,7 @@ import { Modal, Form, Input, Button, message } from 'antd';
 import { useMutation } from '@apollo/client';
 import { CREATE_SUPPLIER, UPDATE_SUPPLIER } from '../../apollo/mutations/supplierMutations';
 import { GET_SUPPLIERS } from '../../apollo/queries/supplierQueries';
+import { useAntdNotice } from '../../contexts/AntdNoticeContext';
 
 const { TextArea } = Input;
 
@@ -23,12 +24,21 @@ interface SupplierFormModalProps {
   open: boolean;
   onClose: () => void;
   supplierToEdit?: SupplierToEdit | null;
+  onSuccess?: (newSupplierId: string) => void;
 }
 
-const SupplierFormModal: React.FC<SupplierFormModalProps> = ({ open, onClose, supplierToEdit }) => {
+const SupplierFormModal: React.FC<SupplierFormModalProps> = ({ open, onClose, supplierToEdit, onSuccess }) => {
   const [form] = Form.useForm<SupplierFormData>();
+  const { messageApi } = useAntdNotice();
 
-  const [createSupplier, { loading: createLoading }] = useMutation(CREATE_SUPPLIER);
+  const [createSupplier, { loading: createLoading }] = useMutation(CREATE_SUPPLIER, {
+    // 👇 Add onCompleted handler
+    onCompleted: (data) => {
+        if (data?.createSupplier && onSuccess) {
+            onSuccess(data.createSupplier.id); // Pass the new ID back
+        }
+    }
+  });
   const [updateSupplier, { loading: updateLoading }] = useMutation(UPDATE_SUPPLIER);
 
   useEffect(() => {
@@ -48,17 +58,17 @@ const SupplierFormModal: React.FC<SupplierFormModalProps> = ({ open, onClose, su
           variables: { id: supplierToEdit.id, updateSupplierInput: values },
           refetchQueries: [{ query: GET_SUPPLIERS }],
         });
-        message.success('Supplier updated successfully!');
+        messageApi.success('Supplier updated successfully!');
       } else {
         await createSupplier({
           variables: { createSupplierInput: values },
           refetchQueries: [{ query: GET_SUPPLIERS }],
         });
-        message.success('Supplier created successfully!');
+        messageApi.success('Supplier created successfully!');
       }
       onClose(); // This will trigger form.resetFields() via useEffect if not editing
     } catch (e: any) {
-      message.error(`Operation failed: ${e.message}`);
+      messageApi.error(`Operation failed: ${e.message}`);
     }
   };
 

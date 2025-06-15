@@ -15,40 +15,36 @@ import {
   Divider,
   Space,
   message,
+  Empty,
 } from 'antd';
 import {
   ArrowLeftOutlined,
   EditOutlined,
   DeliveredProcedureOutlined,
   CheckCircleOutlined,
-  PrinterOutlined, // For a conceptual print button
+  PrinterOutlined,
 } from '@ant-design/icons';
-import moment from 'moment';
+import dayjs from 'dayjs';
 import { GET_PURCHASE_ORDER_BY_ID } from '../../apollo/queries/purchaseOrderQueries';
-import { PurchaseOrderStatus } from '../../common/enums/purchase-order-status.enum'; // Frontend enum
+import { PurchaseOrderStatus } from '../../common/enums/purchase-order-status.enum';
 import { useAuth } from '../../contexts/AuthContext';
 import { Role } from '../../common/enums/role.enum';
-
-// Import Modals if actions are triggered directly from this page
 import UpdatePOStatusModal from './UpdatePOStatusModal';
 import ReceivePOItemsModal from './ReceivePOItemsModal';
 
 const { Title, Text, Paragraph } = Typography;
 
-// Interfaces for expected data structure (can be more detailed based on your GQL types)
-interface ProductDetail { id: string; name: string; sku?: string; }
-interface POItemDetailForView {
-  id: string;
-  product: ProductDetail;
-  quantityOrdered: number;
-  quantityReceived: number;
-  unitCost: number;
-  totalCost: number;
+// --- Interfaces for data structures ---
+interface LandedCost {
+  name: string;
+  amount: number;
 }
 interface SupplierDetail { id: string; name: string; email?: string; phone?: string; address?: string;}
 interface UserDetail { id: string; name?: string; email: string; }
 
 interface PurchaseOrderFullDetail {
+  updatedAt: string | number | Date | null | undefined;
+  createdAt: string | number | Date | null | undefined;
   id: string;
   poNumber: string;
   orderDate: string;
@@ -57,13 +53,19 @@ interface PurchaseOrderFullDetail {
   status: PurchaseOrderStatus;
   totalAmount: number;
   notes?: string;
-  shippingCost?: number;
-  taxes?: number;
+  taxes?: number; // 👈 Add taxes
+  landingCosts?: LandedCost[] | string;// 👈 Add landed costs
+  //   supplier: { id: string; name: string; email?: string; phone?: string; address?: string; };
   supplier: SupplierDetail;
   user?: UserDetail;
-  items: POItemDetailForView[];
-  createdAt: string;
-  updatedAt: string;
+  items: {
+    id: string;
+    product: { id: string; name: string; sku?: string; };
+    quantityOrdered: number;
+    quantityReceived: number;
+    unitCost: number;
+    totalCost: number;
+  }[];
 }
 
 const PurchaseOrderDetailPage: React.FC = () => {
@@ -75,39 +77,30 @@ const PurchaseOrderDetailPage: React.FC = () => {
     GET_PURCHASE_ORDER_BY_ID,
     {
       variables: { id: poId },
-      fetchPolicy: 'cache-and-network', // Ensure fresh data but use cache initially
-      onError: (err) => {
-        message.error(`Error loading PO details: ${err.message}`);
-      }
+      fetchPolicy: 'cache-and-network',
     }
   );
 
-  // State for action modals if triggering from here
   const [isUpdateStatusModalOpen, setIsUpdateStatusModalOpen] = useState(false);
   const [isReceiveItemsModalOpen, setIsReceiveItemsModalOpen] = useState(false);
 
-  if (loading) {
-    return <div style={{ textAlign: 'center', padding: '50px' }}><Spin size="large" tip="Loading Purchase Order Details..." /></div>;
-  }
-  if (error || !data?.purchaseOrder) {
-    return (
-      <div style={{ padding: '24px' }}>
-        <Alert
-          message="Error Loading Purchase Order"
-          description={error?.message || 'The purchase order could not be found or loaded.'}
-          type="error"
-          showIcon
-          action={
-            <Button type="primary" onClick={() => navigate('/admin/purchase-orders')}>
-              Back to List
-            </Button>
-          }
-        />
-      </div>
-    );
+  if (loading) return <div style={{ textAlign: 'center', padding: '50px' }}><Spin size="large" /></div>;
+  if (error) return <Alert message="Error Loading Purchase Order" description={error.message} type="error" showIcon />;
+
+  const po = data?.purchaseOrder;
+  if (!po) return <Alert message="Purchase Order not found." type="warning" showIcon />;
+
+  let parsedLandingCosts: LandedCost[] = [];
+  if (typeof po.landingCosts === 'string') {
+    try {
+      parsedLandingCosts = JSON.parse(po.landingCosts);
+    } catch (e) {
+      console.error("Failed to parse landingCosts JSON", e);
+    }
+  } else if (Array.isArray(po.landingCosts)) {
+    parsedLandingCosts = po.landingCosts;
   }
 
-  const po = data.purchaseOrder;
 
   const statusColors: { [key in PurchaseOrderStatus]: string } = {
     [PurchaseOrderStatus.DRAFT]: 'blue',
@@ -117,26 +110,32 @@ const PurchaseOrderDetailPage: React.FC = () => {
     [PurchaseOrderStatus.RECEIVED]: 'green',
     [PurchaseOrderStatus.CANCELLED]: 'red',
   };
-
-  const itemColumns = [
-    { title: '#', key: 'index', render: (_text: any, _record: any, index: number) => index + 1, width: 50 },
-    { title: 'Product', dataIndex: ['product', 'name'], key: 'productName', render: (name: string, record: POItemDetailForView) => <Link to={`/admin/products/${record.product.id}`}>{name}</Link>},
-    { title: 'SKU', dataIndex: ['product', 'sku'], key: 'sku', render: (sku?:string) => sku || 'N/A' },
-    { title: 'Ordered', dataIndex: 'quantityOrdered', key: 'qtyOrdered', align: 'right' as 'right' },
-    { title: 'Received', dataIndex: 'quantityReceived', key: 'qtyReceived', align: 'right' as 'right', render: (qty: number, record: POItemDetailForView) => <Text type={qty < record.quantityOrdered ? 'warning' : 'success'}>{qty}</Text> },
-    { title: 'Unit Cost', dataIndex: 'unitCost', key: 'unitCost', align: 'right'as 'right', render: (cost: number) => `$${cost.toFixed(2)}` },
-    { title: 'Item Total', dataIndex: 'totalCost', key: 'itemTotal', align: 'right'as 'right', render: (total: number) => `$${total.toFixed(2)}` },
-  ];
-
   const canEdit = hasRole([Role.ADMIN, Role.MANAGER]) && po.status === PurchaseOrderStatus.DRAFT;
   const canUpdateStatus = hasRole([Role.ADMIN, Role.MANAGER]) && ![PurchaseOrderStatus.RECEIVED, PurchaseOrderStatus.CANCELLED].includes(po.status);
-  const canReceiveItems = hasRole([Role.ADMIN, Role.MANAGER]) && [PurchaseOrderStatus.SENT, PurchaseOrderStatus.APPROVED, PurchaseOrderStatus.PARTIALLY_RECEIVED].includes(po.status);
-
+  const canReceiveItems = hasRole([Role.ADMIN, Role.MANAGER]) && ['SENT', 'APPROVED', 'PARTIALLY_RECEIVED'].includes(po.status);
+  
   const subTotalItems = po.items.reduce((sum, item) => sum + item.totalCost, 0);
+  const totalLandedCosts = parsedLandingCosts.reduce((sum, cost) => sum + cost.amount, 0);
+
+  const itemColumns = [
+    { title: '#', key: 'index', render: (_: any, __: any, index: number) => index + 1 },
+    { title: 'Product', dataIndex: ['product', 'name'], key: 'productName' },
+    { title: 'SKU', dataIndex: ['product', 'sku'], key: 'sku' },
+    { title: 'Ordered', dataIndex: 'quantityOrdered', key: 'qtyOrdered', align: 'right' as 'right' },
+    { title: 'Received', dataIndex: 'quantityReceived', key: 'qtyReceived', align: 'right' as 'right' },
+    { title: 'Unit Cost', dataIndex: 'unitCost', key: 'unitCost', align: 'right' as 'right', render: (cost: number) => `$${cost.toFixed(2)}` },
+    { title: 'Item Total', dataIndex: 'totalCost', key: 'itemTotal', align: 'right' as 'right', render: (total: number) => `$${total.toFixed(2)}` },
+  ];
+
+  const landedCostColumns = [
+      { title: 'Cost Name', dataIndex: 'name', key: 'name' },
+      { title: 'Amount', dataIndex: 'amount', key: 'amount', align: 'right' as 'right', render: (amount: number) => `$${amount.toFixed(2)}` }
+  ];
 
   return (
     <div style={{ padding: '24px' }}>
       <Space direction="vertical" size="large" style={{ width: '100%' }}>
+        {/* --- Header and Action Buttons --- */}
         <Row justify="space-between" align="middle">
           <Col>
             <Space>
@@ -171,20 +170,21 @@ const PurchaseOrderDetailPage: React.FC = () => {
           </Col>
         </Row>
 
+        {/* --- PO and Supplier Details --- */}
         <Row gutter={24}>
           <Col xs={24} md={12}>
             <Card title="PO Information">
               <Descriptions bordered column={1} size="small">
                 <Descriptions.Item label="PO Number">{po.poNumber}</Descriptions.Item>
-                <Descriptions.Item label="Order Date">{moment(po.orderDate).format('YYYY-MM-DD HH:mm')}</Descriptions.Item>
-                <Descriptions.Item label="Expected Delivery">{po.expectedDeliveryDate ? moment(po.expectedDeliveryDate).format('YYYY-MM-DD') : 'N/A'}</Descriptions.Item>
-                <Descriptions.Item label="Actual Delivery">{po.actualDeliveryDate ? moment(po.actualDeliveryDate).format('YYYY-MM-DD') : 'N/A'}</Descriptions.Item>
+                <Descriptions.Item label="Order Date">{dayjs(po.orderDate).format('YYYY-MM-DD HH:mm')}</Descriptions.Item>
+                <Descriptions.Item label="Expected Delivery">{po.expectedDeliveryDate ? dayjs(po.expectedDeliveryDate).format('YYYY-MM-DD') : 'N/A'}</Descriptions.Item>
+                <Descriptions.Item label="Actual Delivery">{po.actualDeliveryDate ? dayjs(po.actualDeliveryDate).format('YYYY-MM-DD') : 'N/A'}</Descriptions.Item>
                 <Descriptions.Item label="Status">
                   <Tag color={statusColors[po.status] || 'default'}>{po.status.replace('_', ' ')}</Tag>
                 </Descriptions.Item>
                 <Descriptions.Item label="Created By">{po.user?.name || po.user?.email || 'N/A'}</Descriptions.Item>
-                <Descriptions.Item label="Created At">{moment(po.createdAt).format('YYYY-MM-DD HH:mm')}</Descriptions.Item>
-                <Descriptions.Item label="Last Updated">{moment(po.updatedAt).format('YYYY-MM-DD HH:mm')}</Descriptions.Item>
+                <Descriptions.Item label="Created At">{dayjs(po.createdAt).format('YYYY-MM-DD HH:mm')}</Descriptions.Item>
+                <Descriptions.Item label="Last Updated">{dayjs(po.updatedAt).format('YYYY-MM-DD HH:mm')}</Descriptions.Item>
               </Descriptions>
             </Card>
           </Col>
@@ -220,12 +220,6 @@ const PurchaseOrderDetailPage: React.FC = () => {
                   <Table.Summary.Cell index={0} colSpan={6} align="right"><Text strong>Subtotal (Items):</Text></Table.Summary.Cell>
                   <Table.Summary.Cell index={1} align="right"><Text strong>${subTotalItems.toFixed(2)}</Text></Table.Summary.Cell>
                 </Table.Summary.Row>
-                { (po.shippingCost !== null && po.shippingCost !== undefined && po.shippingCost > 0) &&
-                    <Table.Summary.Row>
-                        <Table.Summary.Cell index={0} colSpan={6} align="right"><Text>Shipping Cost:</Text></Table.Summary.Cell>
-                        <Table.Summary.Cell index={1} align="right"><Text>${(po.shippingCost || 0).toFixed(2)}</Text></Table.Summary.Cell>
-                    </Table.Summary.Row>
-                }
                  { (po.taxes !== null && po.taxes !== undefined && po.taxes > 0) &&
                     <Table.Summary.Row>
                         <Table.Summary.Cell index={0} colSpan={6} align="right"><Text>Taxes:</Text></Table.Summary.Cell>
@@ -240,6 +234,30 @@ const PurchaseOrderDetailPage: React.FC = () => {
             )}
           />
         </Card>
+
+        {/* 👇 NEW Landed Costs Card */}
+        <Row gutter={24}>
+            <Col xs={24} md={12}>
+                <Card title="Landed Costs">
+                    {parsedLandingCosts && parsedLandingCosts.length > 0 ? (
+                        <Table columns={landedCostColumns} dataSource={parsedLandingCosts} rowKey="name" pagination={false} size="small" bordered/>
+                    ) : (
+                        <Empty description="No additional landed costs were added." />
+                    )}
+                </Card>
+            </Col>
+            
+            {/* --- Summary Calculation --- */}
+            <Col xs={24} md={12}>
+                <Card title="Financial Summary">
+                    <Descriptions column={1} layout="horizontal" bordered size="small">
+                        <Descriptions.Item label="Items Subtotal">${subTotalItems.toFixed(2)}</Descriptions.Item>
+                        <Descriptions.Item label="Total Landed Costs">${totalLandedCosts.toFixed(2)}</Descriptions.Item>
+                        <Descriptions.Item label={<Text strong>Grand Total</Text>}><Text strong>${po.totalAmount.toFixed(2)}</Text></Descriptions.Item>
+                    </Descriptions>
+                </Card>
+            </Col>
+        </Row>
       </Space>
 
       {/* Modals for actions */}

@@ -56,9 +56,10 @@ interface ProductFormModalProps {
   open: boolean;
   onClose: () => void;
   productToEdit?: ProductToEdit | null;
+  onSuccess?: (newProductId: string) => void;
 }
 
-const ProductFormModal: React.FC<ProductFormModalProps> = ({ open, onClose, productToEdit }) => {
+const ProductFormModal: React.FC<ProductFormModalProps> = ({ open, onClose, productToEdit, onSuccess }) => {
   const [form] = Form.useForm<ProductFormValues>();
   const { messageApi } = useAntdNotice();
   const [fileList, setFileList] = useState<UploadFile[]>([]);
@@ -68,7 +69,14 @@ const ProductFormModal: React.FC<ProductFormModalProps> = ({ open, onClose, prod
   const { data: taxesData, loading: taxesLoading } = useQuery<{ taxes: TaxInfo[] }>(GET_TAXES);
   
   const [uploadImage, { loading: uploadLoading }] = useMutation<{ uploadProductImage: string }, { file: any }>(UPLOAD_PRODUCT_IMAGE);
-  const [createProduct, { loading: createLoading }] = useMutation(CREATE_PRODUCT);
+  const [createProduct, { loading: createLoading }] = useMutation(CREATE_PRODUCT, {
+      // 👇 Add onCompleted handler
+      onCompleted: (data) => {
+          if (data?.createProduct && onSuccess) {
+              onSuccess(data.createProduct.id); // Pass the new ID back
+          }
+      }
+    });
   const [updateProduct, { loading: updateLoading }] = useMutation(UPDATE_PRODUCT);
   
   const isEditMode = !!productToEdit;
