@@ -22,7 +22,7 @@ import {
   Input,
   Image
 } from 'antd';
-import { ShoppingCartOutlined, DeleteOutlined, DollarCircleOutlined, TagOutlined, SearchOutlined } from '@ant-design/icons';
+import { ShoppingCartOutlined, DeleteOutlined, DollarCircleOutlined, TagOutlined, SearchOutlined, EditOutlined } from '@ant-design/icons';
 import { useReactToPrint } from 'react-to-print';
 // Local Imports
 import { GET_PRODUCTS } from '../../apollo/queries/productQueries';
@@ -38,6 +38,12 @@ import { DiscountType } from '../../common/enums/discount-type.enum';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
+
+interface SettingsData {
+  pricesEnteredWithTax: boolean;
+  allowPriceEditAtSale: boolean;
+  allowNegativeStockSale: boolean;
+}
 
 // --- Interfaces ---
 interface ProductData {
@@ -64,12 +70,24 @@ interface CartItem {
   discountType: DiscountType;
   discountValue: number;
   taxRate?: number;
+  priceAtSale: number; 
 }
 
 interface DiscountFormValues {
   type: DiscountType;
   value: number;
 }
+
+const PriceEditPopoverContent: React.FC<{ onApply: (newPrice: number) => void; initialValue: number }> = ({ onApply, initialValue }) => {
+  const [newPrice, setNewPrice] = useState(initialValue);
+  return (
+    <Space>
+      <InputNumber value={newPrice} onChange={(val) => setNewPrice(val!)} min={0} precision={2} prefix="$" />
+      <Button type="primary" onClick={() => onApply(newPrice)}>Set</Button>
+    </Space>
+  );
+};
+// ... (Discou
 
 // --- Reusable Discount Popover ---
 const DiscountPopoverContent: React.FC<{ onApply: (values: DiscountFormValues) => void; initialValues: DiscountFormValues }> = ({ onApply, initialValues }) => {
@@ -89,6 +107,7 @@ const PosInterfacePage: React.FC = () => {
   // --- State Management ---
   const [cart, setCart] = useState<CartItem[]>([]);
   const [cartDiscount, setCartDiscount] = useState<{type: DiscountType, value: number}>({ type: DiscountType.NONE, value: 0 });
+  const { data: settingsData, loading: settingsLoading } = useQuery<{ settings: SettingsData }>(GET_SETTINGS);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | undefined>(undefined);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [lastCompletedOrder, setLastCompletedOrder] = useState<OrderDataForReceipt | null>(null);
@@ -105,11 +124,15 @@ const PosInterfacePage: React.FC = () => {
       onAfterPrint: () => receiptRef.current?.focus(),
     });
 
+
   // --- GraphQL Operations ---
-  const { data: settingsData } = useQuery<{ settings: { pricesEnteredWithTax: boolean } }>(GET_SETTINGS);
+  // const { data: settingsData } = useQuery<{ settings: { pricesEnteredWithTax: boolean } }>(GET_SETTINGS);
   const { data: productsData, loading: productsLoading, error: productsError, refetch: refetchProducts } = useQuery<{ products: ProductData[] }>(GET_PRODUCTS);
   const [fetchCustomers, { data: customersData, loading: customersLoading }] = useLazyQuery<{ customers: CustomerData[] }>(GET_CUSTOMERS);
   
+  const allowNegativeStockSale = settingsData?.settings.allowNegativeStockSale || false;
+  const allowPriceEditAtSale = settingsData?.settings.allowPriceEditAtSale || false;
+
   const [createOrder, { loading: orderLoading }] = useMutation(CREATE_ORDER_MUTATION, {
     onCompleted: (data) => {
       const newOrderData = data.createOrder as OrderDataForReceipt;
@@ -148,7 +171,7 @@ const PosInterfacePage: React.FC = () => {
     let currentTotalItemDiscount = 0;
     let currentTotalTax = 0;
     cart.forEach(item => {
-      const lineTotal = item.price * item.quantity;
+      const lineTotal = item.priceAtSale * item.quantity; 
       currentItemsTotal += lineTotal;
       let lineDiscountAmount = 0;
       if (item.discountType === DiscountType.PERCENTAGE) lineDiscountAmount = lineTotal * (item.discountValue / 100);
@@ -182,6 +205,7 @@ const PosInterfacePage: React.FC = () => {
   useEffect(() => { fetchCustomers(); }, [fetchCustomers]);
 
   const handleAddToCart = (product: ProductData) => {
+    const stock = product.inventoryItem?.quantity ?? 0;
     if ((product.inventoryItem?.quantity ?? 0) <= 0) { messageApi.warning(`${product.name} is out of stock!`); return; }
     const totalTaxRate = product.taxes?.reduce((sum, tax) => sum + tax.rate, 0) || 0;
     setCart((prevCart) => {
@@ -189,13 +213,18 @@ const PosInterfacePage: React.FC = () => {
       if (existingItem) {
         const updatedCart = [...prevCart];
         const itemInCart = updatedCart.find(i => i.productId === product.id)!;
-        if(itemInCart.quantity < (product.inventoryItem?.quantity ?? 0)) itemInCart.quantity += 1;
-        else messageApi.warning('Maximum stock reached');
+        if (allowNegativeStockSale || itemInCart.quantity < stock) {
+            itemInCart.quantity += 1;
+        } else {
+            messageApi.warning('Maximum stock reached');
+        }
         return updatedCart;
       }
       return [...prevCart, {
-        productId: product.id, name: product.name, quantity: 1, price: product.price,
-        stock: product.inventoryItem?.quantity ?? 0,
+        productId: product.id, name: product.name, quantity: 1,
+        price: product.price,
+        priceAtSale: product.price, // Initially, sale price is the original price
+        stock: stock,
         discountType: DiscountType.NONE, discountValue: 0,
         taxRate: totalTaxRate,
       }];
@@ -229,10 +258,22 @@ const PosInterfacePage: React.FC = () => {
     if (cart.length === 0) { messageApi.error('Cart is empty!'); return; }
     setIsPaymentModalOpen(true);
   };
+const handlePriceEdit = (productId: string, newPrice: number) => {
+    setCart(cart => cart.map(item => 
+      item.productId === productId ? { ...item, priceAtSale: newPrice } : item
+    ));
+    messageApi.success("Price updated for this sale.");
+  };
 
   const handleProcessPayment = (payments: PaymentInput[]) => {
     createOrder({ variables: { createOrderInput: {
-      items: cart.map(item => ({ productId: item.productId, quantity: item.quantity, priceAtSale: item.price, discountType: item.discountType, discountValue: item.discountValue })),
+      items: cart.map(item => ({
+        productId: item.productId,
+        quantity: item.quantity,
+        priceAtSale: item.priceAtSale, // Pass the final priceAtSale
+        discountType: item.discountType,
+        discountValue: item.discountValue,
+      })),
       payments, customerId: selectedCustomerId, orderDiscountType: cartDiscount.type, orderDiscountValue: cartDiscount.value,
     }}});
   };
@@ -275,7 +316,7 @@ const PosInterfacePage: React.FC = () => {
                       )
                     }                    styles={{ body: { padding: '12px' } }}
                     actions={[
-                      <Button type="primary" icon={<ShoppingCartOutlined />} onClick={() => handleAddToCart(product)} disabled={(product.inventoryItem?.quantity ?? 0) <= 0}>Add</Button>
+                      <Button type="primary" icon={<ShoppingCartOutlined />} onClick={() => handleAddToCart(product)} disabled={(product.inventoryItem?.quantity ?? 0) <= 0 && !allowNegativeStockSale}>Add</Button>
                     ]}
                   >
                     <Card.Meta title={<Tooltip title={product.name}>{product.name}</Tooltip>} description={
@@ -337,6 +378,16 @@ const PosInterfacePage: React.FC = () => {
                     return (
                       <List.Item
                         actions={[
+                          allowPriceEditAtSale && (
+                            <Popover
+                              content={<PriceEditPopoverContent onApply={(newPrice) => handlePriceEdit(item.productId, newPrice)} initialValue={item.priceAtSale} />}
+                              title="Set Custom Price"
+                              trigger="click"
+                              placement="left"
+                            >
+                              <Tooltip title="Edit Price"><Button type="text" icon={<EditOutlined />} /></Tooltip>
+                            </Popover>
+                          ),
                           <Popover
                             content={
                               <DiscountPopoverContent
@@ -362,21 +413,29 @@ const PosInterfacePage: React.FC = () => {
                           </Tooltip>,
                         ]}
                       >
-                        <List.Item.Meta
-                          title={item.name}
-                          description={
-                            <>
-                              {item.discountType !== DiscountType.NONE ? (
-                                <Text delete>${item.price.toFixed(2)}</Text>
-                              ) : (
-                                `$${item.price.toFixed(2)} each`
-                              )}
-                              {item.taxRate && item.taxRate > 0 && (
-                                <Tag style={{ marginLeft: 8 }}>{item.taxRate}% tax</Tag>
-                              )}
-                            </>
-                          }
-                        />
+                       <List.Item.Meta
+                            title={item.name}
+                            description={
+                              <Space wrap>
+                                {item.priceAtSale !== item.price ? (
+                                  <>
+                                    <Text delete>${item.price.toFixed(2)}</Text>
+                                    <Text type="success" style={{ marginLeft: 8 }}>
+                                      ${item.priceAtSale.toFixed(2)}
+                                    </Text>
+                                  </>
+                                ) : item.discountType !== DiscountType.NONE ? (
+                                  <Text delete>${item.price.toFixed(2)}</Text>
+                                ) : (
+                                  `$${item.price.toFixed(2)} each`
+                                )}
+
+                                {item.taxRate && item.taxRate > 0 && (
+                                  <Tag>{item.taxRate}% tax</Tag>
+                                )}
+                              </Space>
+                            }
+                          />
                         <Space direction="vertical" align="end" size="small">
                           <InputNumber
                             min={1}

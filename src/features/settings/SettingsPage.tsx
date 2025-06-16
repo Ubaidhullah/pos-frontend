@@ -14,17 +14,20 @@ import {
   Select,
   Tooltip,
   Divider,
-  Radio
+  Radio,
+  Switch, // Added Switch for the new toggles
 } from 'antd';
-import { SaveOutlined, InfoCircleOutlined } from '@ant-design/icons';
+import { SaveOutlined } from '@ant-design/icons';
 import { GET_SETTINGS } from '../../apollo/queries/settingsQueries';
 import { UPDATE_SETTINGS } from '../../apollo/mutations/settingsMutations';
 import { useAuth } from '../../contexts/AuthContext';
 import { Role } from '../../common/enums/role.enum';
+import { useAntdNotice } from '../../contexts/AntdNoticeContext';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
 
+// --- Interface for all settings data ---
 interface SettingsData {
   companyName?: string;
   logoUrl?: string;
@@ -38,11 +41,15 @@ interface SettingsData {
   quoteNumberFormat?: string;
   poNumberFormat?: string;
   pricesEnteredWithTax: boolean;
+  allowPriceEdit: boolean;
+  allowNegativeStock: boolean;
+  cashDenominations: number[];
 }
 
 const SettingsPage: React.FC = () => {
   const [form] = Form.useForm<SettingsData>();
   const { hasRole } = useAuth();
+  const { messageApi } = useAntdNotice();
 
   const { data, loading: queryLoading, error: queryError } = useQuery<{ settings: SettingsData }>(GET_SETTINGS);
   const [updateSettings, { loading: mutationLoading }] = useMutation(UPDATE_SETTINGS);
@@ -54,46 +61,37 @@ const SettingsPage: React.FC = () => {
   }, [data, form]);
 
   const onFinish = async (values: SettingsData) => {
+    // Process all values before sending to the backend
     const processedValues = {
       ...values,
+      allowPriceEdit: !!values.allowPriceEdit,
+      allowNegativeStock: !!values.allowNegativeStock,
       pricesEnteredWithTax: !!values.pricesEnteredWithTax,
+      // Convert string tags from the Select component back to numbers and sort them
+      cashDenominations: (values.cashDenominations || [])
+        .map(val => Number(val))
+        .filter(n => !isNaN(n) && n > 0)
+        .sort((a, b) => b - a),
     };
+
     try {
       await updateSettings({
         variables: {
           updateSettingsInput: processedValues,
         },
       });
-      message.success('Settings updated successfully!');
+      messageApi.success('Settings updated successfully!');
     } catch (e: any) {
-      message.error(`Failed to update settings: ${e.message}`);
+      messageApi.error(`Failed to update settings: ${e.message}`);
     }
   };
 
-  const timezones = [
-    'UTC',
-    'Indian/Maldives',
-    'Asia/Dubai',
-    'Asia/Kolkata',
-    'Asia/Singapore',
-    'Asia/Taipei',
-    'Europe/London',
-    'America/New_York',
-  ];
-
+  const timezones = [ 'UTC', 'Indian/Maldives', 'Asia/Dubai', 'Asia/Kolkata', 'Asia/Singapore', 'Asia/Taipei', 'Europe/London', 'America/New_York' ];
   const currencies = ['MVR', 'USD', 'EUR', 'GBP', 'INR', 'SGD'];
 
-  if (!hasRole([Role.ADMIN])) {
-    return <Alert message="Access Denied" description="Only administrators can access this page." type="error" showIcon />;
-  }
-
-  if (queryLoading) {
-    return <div style={{ textAlign: 'center', padding: '50px' }}><Spin size="large" tip="Loading Settings..." /></div>;
-  }
-
-  if (queryError) {
-    return <Alert message="Error" description={`Could not load settings: ${queryError.message}`} type="error" showIcon />;
-  }
+  if (!hasRole([Role.ADMIN])) return <Alert message="Access Denied" description="Only administrators can access this page." type="error" showIcon />;
+  if (queryLoading) return <div style={{ textAlign: 'center', padding: '50px' }}><Spin size="large" tip="Loading Settings..." /></div>;
+  if (queryError) return <Alert message="Error" description={`Could not load settings: ${queryError.message}`} type="error" showIcon />;
 
   return (
     <div>
@@ -101,70 +99,42 @@ const SettingsPage: React.FC = () => {
       <Form form={form} layout="vertical" onFinish={onFinish}>
         <Row gutter={[24, 24]}>
           <Col xs={24} lg={12}>
-            <Card title="General Settings">
-              <Form.Item name="companyName" label="Company Name">
-                <Input placeholder="Your Company LLC" />
-              </Form.Item>
-
-              <Form.Item name="logoUrl" label="Company Logo URL" tooltip="Enter a public URL for your company logo.">
-                <Input placeholder="https://example.com/logo.png" />
-              </Form.Item>
-
-              <Form.Item name="address" label="Company Address">
-                <Input.TextArea rows={3} placeholder="123 Main Street, City, Country" />
-              </Form.Item>
-
-              <Form.Item name="salesEmail" label="Sales Email" tooltip="Used for CC/BCC on receipts and invoices.">
-                <Input placeholder="sales@yourcompany.com" />
-              </Form.Item>
-
-              <Divider />
+            <Card title="General, Financial, & Payment Settings">
+              {/* General Info */}
+              <Form.Item name="companyName" label="Company Name"><Input placeholder="Your Company LLC" /></Form.Item>
+              <Form.Item name="logoUrl" label="Company Logo URL"><Input placeholder="https://example.com/logo.png" /></Form.Item>
+              <Form.Item name="address" label="Company Address"><Input.TextArea rows={2} /></Form.Item>
+              <Form.Item name="salesEmail" label="Sales Email"><Input placeholder="sales@yourcompany.com" /></Form.Item>
+              
+              <Divider>Financial Settings</Divider>
               <Row gutter={16}>
-                <Col span={12}>
-                  <Form.Item name="baseCurrency" label="Base Currency" rules={[{ required: true }]}>
-                    <Select showSearch placeholder="Select base currency">
-                      {currencies.map(c => <Option key={c} value={c}>{c}</Option>)}
-                    </Select>
-                  </Form.Item>
-                </Col>
-                <Col span={12}>
-                  <Form.Item name="displayCurrency" label="Display Currency (Optional)" tooltip="Show a second currency on bills for reference.">
-                    <Select showSearch placeholder="Select display currency" allowClear>
-                      {currencies.map(c => <Option key={c} value={c}>{c}</Option>)}
-                    </Select>
-                  </Form.Item>
-                </Col>
+                <Col span={12}><Form.Item name="baseCurrency" label="Base Currency" rules={[{ required: true }]}><Select showSearch>{currencies.map(c => <Option key={c} value={c}>{c}</Option>)}</Select></Form.Item></Col>
+                <Col span={12}><Form.Item name="displayCurrency" label="Display Currency (Optional)"><Select showSearch allowClear>{currencies.map(c => <Option key={c} value={c}>{c}</Option>)}</Select></Form.Item></Col>
               </Row>
-
-              <Form.Item name="timezone" label="Timezone" rules={[{ required: true }]}>
-                <Select showSearch placeholder="Select timezone">
-                  {timezones.map(tz => <Option key={tz} value={tz}>{tz}</Option>)}
-                </Select>
-              </Form.Item>
+              <Form.Item name="timezone" label="Timezone" rules={[{ required: true }]}><Select showSearch>{timezones.map(tz => <Option key={tz} value={tz}>{tz}</Option>)}</Select></Form.Item>
 
               <Divider>Tax Settings</Divider>
+              <Form.Item name="pricesEnteredWithTax" label="Product Pricing Method" rules={[{ required: true }]}><Radio.Group><Radio.Button value={false}>Exclusive of Tax</Radio.Button><Radio.Button value={true}>Inclusive of Tax</Radio.Button></Radio.Group></Form.Item>
 
-              <Form.Item
-                name="pricesEnteredWithTax"
-                label="Product Pricing Method"
-                tooltip="Determines how tax is calculated at checkout."
-                rules={[{ required: true, message: 'Please select a pricing method.' }]}
-              >
-                <Radio.Group>
-                  <Radio.Button value={false}>Prices are Exclusive of Tax</Radio.Button>
-                  <Radio.Button value={true}>Prices are Inclusive of Tax</Radio.Button>
-                </Radio.Group>
+              {/* 👇 NEW Payment Settings Section */}
+              <Divider>Payment Settings</Divider>
+              <Form.Item name="cashDenominations" label="Cash Denominations" tooltip="Enter common cash bill/coin values. Press Enter after each value.">
+                <Select mode="tags" placeholder="Type a number and press Enter (e.g., 1000, 500, 100)" tokenSeparators={[',', ' ']} style={{ width: '100%' }} />
               </Form.Item>
-
-              <Text type="secondary">
-                <b>Exclusive:</b> Tax is added on top of the product price at checkout. (e.g., $100 item + 5% tax = $105 total).<br />
-                <b>Inclusive:</b> Tax is already included in the product price. The system will back-calculate the tax portion for reporting. (e.g., $105 item includes $5 of tax).
-              </Text>
 
             </Card>
           </Col>
 
           <Col xs={24} lg={12}>
+            <Card title="Sales & Checkout Settings">
+                <Form.Item name="allowPriceEdit" label="Price Editing at Sale" valuePropName="checked" tooltip="Allow cashiers to override item prices in the POS cart.">
+                    <Switch checkedChildren="Allowed" unCheckedChildren="Disallowed" />
+                </Form.Item>
+                <Form.Item name="allowNegativeStock" label="Sell Out-of-Stock Items" valuePropName="checked" tooltip="Allow completing a sale even if stock is zero or negative.">
+                    <Switch checkedChildren="Allowed" unCheckedChildren="Disallowed" />
+                </Form.Item>
+            </Card>
+            
             <Card title="Document Numbering Formats">
               <Text type="secondary" style={{ display: 'block', marginBottom: '16px' }}>
                 Use placeholders like <code>{'{sequence}'}</code>, <code>{'{year}'}</code>, <code>{'{month}'}</code>, <code>{'{day}'}</code>, and <code>{'{registerNumber}'}</code>.
@@ -210,14 +180,8 @@ const SettingsPage: React.FC = () => {
         </Row>
 
         <Form.Item style={{ marginTop: 32 }}>
-          <Button
-            type="primary"
-            htmlType="submit"
-            icon={<SaveOutlined />}
-            loading={mutationLoading}
-            size="large"
-          >
-            Save Settings
+          <Button type="primary" htmlType="submit" icon={<SaveOutlined />} loading={mutationLoading} size="large">
+            Save All Settings
           </Button>
         </Form.Item>
       </Form>
