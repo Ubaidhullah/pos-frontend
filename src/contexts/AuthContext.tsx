@@ -18,6 +18,7 @@ interface AuthUser {
   email: string;
   name?: string;
   role: Role;
+  companyId: string; 
 }
 
 interface AuthContextType {

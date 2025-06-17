@@ -23,6 +23,7 @@ import { UPDATE_SETTINGS } from '../../apollo/mutations/settingsMutations';
 import { useAuth } from '../../contexts/AuthContext';
 import { Role } from '../../common/enums/role.enum';
 import { useAntdNotice } from '../../contexts/AntdNoticeContext';
+import TextArea from 'antd/es/input/TextArea';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -44,6 +45,9 @@ interface SettingsData {
   allowPriceEdit: boolean;
   allowNegativeStock: boolean;
   cashDenominations: number[];
+  receiptShowLogo: boolean;
+  receiptHeader?: string;
+  receiptFooter?: string;
 }
 
 const SettingsPage: React.FC = () => {
@@ -67,6 +71,7 @@ const SettingsPage: React.FC = () => {
       allowPriceEdit: !!values.allowPriceEdit,
       allowNegativeStock: !!values.allowNegativeStock,
       pricesEnteredWithTax: !!values.pricesEnteredWithTax,
+      receiptShowLogo: !!values.receiptShowLogo,
       // Convert string tags from the Select component back to numbers and sort them
       cashDenominations: (values.cashDenominations || [])
         .map(val => Number(val))
@@ -122,6 +127,17 @@ const SettingsPage: React.FC = () => {
                 <Select mode="tags" placeholder="Type a number and press Enter (e.g., 1000, 500, 100)" tokenSeparators={[',', ' ']} style={{ width: '100%' }} />
               </Form.Item>
 
+            </Card>
+            <Card title="Receipt & Printing Settings" style={{marginTop: 24}}>
+                <Form.Item name="receiptShowLogo" label="Display Logo on Receipt" valuePropName="checked">
+                    <Switch checkedChildren="Show" unCheckedChildren="Hide" />
+                </Form.Item>
+                <Form.Item name="receiptHeader" label="Receipt Header Text" help="Optional text to display below the logo.">
+                    <TextArea rows={3} placeholder="e.g., Welcome to our store!" />
+                </Form.Item>
+                <Form.Item name="receiptFooter" label="Receipt Footer Text" help="Optional text for the bottom of the receipt, e.g., return policy, thank you message, or promotions.">
+                    <TextArea rows={4} placeholder="e.g., Thank you for shopping with us! Returns accepted within 7 days with receipt." />
+                </Form.Item>
             </Card>
           </Col>
 

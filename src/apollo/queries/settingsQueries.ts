@@ -16,6 +16,9 @@ export const GET_SETTINGS = gql`
       quoteNumberFormat
       poNumberFormat
       pricesEnteredWithTax
+      receiptFooter
+      receiptHeader
+      receiptShowLogo
     }
   }
 `;

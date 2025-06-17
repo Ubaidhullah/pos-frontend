@@ -7,6 +7,10 @@ interface SettingsData {
   companyName?: string;
   address?: string;
   phone?: string;
+  receiptShowLogo?: boolean; 
+  receiptHeader?: string;   
+  receiptFooter?: string;    
+
 }
 
 export interface OrderDataForReceipt {
@@ -48,6 +52,7 @@ const Receipt: React.FC<ReceiptProps> = ({ order }) => {
       <header className="receipt-header">
         {/* {settings?.logoUrl && <img src={settings.logoUrl} alt="Company Logo" />} */}
         <h1>{settings?.companyName || 'Your Company'}</h1>
+         {settings?.receiptHeader && <p style={{ whiteSpace: 'pre-wrap' }}>{settings.receiptHeader}</p>}
         <p>{settings?.address || '123 Business Rd, Business City'}</p>
         <p>{settings?.phone || '555-1234'}</p>
       </header>
@@ -123,7 +128,9 @@ const Receipt: React.FC<ReceiptProps> = ({ order }) => {
       </section>
 
       <footer className="receipt-footer">
-        <p>Thank you for your business!</p>
+        <p style={{ whiteSpace: 'pre-wrap' }}>
+          {settings?.receiptFooter || 'Thank you for your business!'}
+        </p>
       </footer>
     </div>
   );

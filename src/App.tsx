@@ -25,6 +25,7 @@ import SettingsPage from './features/settings/SettingsPage';
 import ReturnsPage from './features/returns/ReturnsPage';
 import { AntdNoticeProvider } from './contexts/AntdNoticeContext'; 
 import TaxListPage from './features/taxes/TaxListPage';
+import RegisterCompanyPage from './features/auth/RegisterCompanyPage';
 
 import { Role } from './common/enums/role.enum';
 import AuditLogPage from './features/audit-logs/AuditLogPage';
@@ -38,6 +39,7 @@ const AppRoutes: React.FC = () => {
     <Routes>
       {/* Public Routes */}
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/register-company" element={<RegisterCompanyPage />} />
       <Route
         path="/unauthorized"
         element={
