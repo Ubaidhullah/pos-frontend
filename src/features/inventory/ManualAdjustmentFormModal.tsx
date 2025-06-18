@@ -1,23 +1,25 @@
 import React, { useEffect } from 'react';
-import { Modal, Form, InputNumber, Button, message, Select, Input } from 'antd';
+import { Modal, Form, InputNumber, Button, Select, Input } from 'antd';
 import { useMutation } from '@apollo/client';
-import { CREATE_MANUAL_ADJUSTMENT } from '../../apollo/mutations/inventoryAdjustmentMutations';
+import { MANUALLY_SET_STOCK } from '../../apollo/mutations/inventoryAdjustmentMutations';
 import { GET_PRODUCTS_WITH_INVENTORY } from '../../apollo/queries/productQueries';
 import { GET_INVENTORY_ADJUSTMENT_HISTORY } from '../../apollo/queries/inventoryAdjustmentQueries';
-import { InventoryAdjustmentReason } from '../../common/enums/inventory-adjustment-reason.enum'; // Frontend enum
+import { InventoryAdjustmentReason } from '../../common/enums/inventory-adjustment-reason.enum';
+import { useAntdNotice } from '../../contexts/AntdNoticeContext';
 
 const { Option } = Select;
 const { TextArea } = Input;
 
 interface ProductDataForModal {
-  id: string; // Product ID
+  id: string; // This is the Product ID
   name: string;
   currentQuantity: number;
 }
 
 interface AdjustmentFormData {
-  quantityChange: number;
-  reason: InventoryAdjustmentReason;
+  newQuantity: number;
+  // This is a simplified input; the service will calculate the change
+  // reason: InventoryAdjustmentReason; // This is not needed as it's always MANUAL
   notes?: string;
 }
 
@@ -27,49 +29,40 @@ interface ManualAdjustmentFormModalProps {
   productToAdjust: ProductDataForModal | null;
 }
 
-// Only allow manual reasons in the dropdown
-const manualReasons = [
-  InventoryAdjustmentReason.MANUAL_ADJUSTMENT,
-  InventoryAdjustmentReason.DAMAGE,
-  InventoryAdjustmentReason.THEFT,
-];
-
 const ManualAdjustmentFormModal: React.FC<ManualAdjustmentFormModalProps> = ({ open, onClose, productToAdjust }) => {
   const [form] = Form.useForm<AdjustmentFormData>();
+  const { messageApi } = useAntdNotice();
 
-  const [createAdjustment, { loading }] = useMutation(CREATE_MANUAL_ADJUSTMENT, {
+  const [setStock, { loading }] = useMutation(MANUALLY_SET_STOCK, {
     onCompleted: (data) => {
-      message.success(`Stock for "${productToAdjust?.name}" adjusted successfully. New quantity: ${data.createManualAdjustment.quantity}`);
+      messageApi.success(`Stock for "${data.manuallySetStock.product.name}" adjusted successfully.`);
       onClose();
     },
     onError: (error) => {
-      message.error(`Failed to adjust stock: ${error.message}`);
+      messageApi.error(`Failed to adjust stock: ${error.message}`);
     },
     refetchQueries: [
-      { query: GET_PRODUCTS_WITH_INVENTORY }, // Refetch the main inventory list
-      productToAdjust ? { query: GET_INVENTORY_ADJUSTMENT_HISTORY, variables: { productId: productToAdjust.id } } : undefined,
-    ].filter(Boolean) as any,
+      { query: GET_PRODUCTS_WITH_INVENTORY },
+      // Also refetch the history for this product so it's up-to-date
+      productToAdjust ? { query: GET_INVENTORY_ADJUSTMENT_HISTORY, variables: { productId: productToAdjust.id } } : '',
+    ].filter(Boolean),
   });
 
   useEffect(() => {
-    if (!open) {
-      form.resetFields();
+    if (open && productToAdjust) {
+      form.setFieldsValue({ newQuantity: productToAdjust.currentQuantity, notes: '' });
     }
-  }, [open, form]);
+  }, [open, productToAdjust, form]);
 
   const handleFinish = async (values: AdjustmentFormData) => {
     if (!productToAdjust) return;
-    if (values.quantityChange === 0) {
-      message.warning('Quantity change cannot be zero.');
-      return;
-    }
-
-    createAdjustment({
+    
+    // The backend service calculates the 'quantityChange', so we send the final desired quantity.
+    setStock({
       variables: {
-        createManualAdjustmentInput: {
+        manualStockAdjustmentInput: {
           productId: productToAdjust.id,
-          quantityChange: Number(values.quantityChange),
-          reason: values.reason,
+          newQuantity: Number(values.newQuantity),
           notes: values.notes,
         },
       },
@@ -91,26 +84,22 @@ const ManualAdjustmentFormModal: React.FC<ManualAdjustmentFormModalProps> = ({ o
       <p>Current stock on hand: <strong>{productToAdjust?.currentQuantity}</strong></p>
       <Form form={form} layout="vertical" onFinish={handleFinish}>
         <Form.Item
-          name="quantityChange"
-          label="Quantity Change"
-          tooltip="Enter a positive number to add stock (e.g., 10) or a negative number to remove stock (e.g., -5)."
-          rules={[{ required: true, message: 'Quantity change is required.' }]}
+          name="newQuantity"
+          label="New Total Stock Quantity"
+          rules={[
+            { required: true, message: 'Please input the new quantity!' },
+            { type: 'number', min: 0, message: 'Quantity cannot be negative.' }
+          ]}
+          tooltip="Enter the final, correct quantity for this product after your count."
         >
-          <InputNumber style={{ width: '100%' }} placeholder="e.g., -5 or 10" />
+          <InputNumber style={{ width: '100%' }} min={0} placeholder="e.g., 50" />
         </Form.Item>
         <Form.Item
-          name="reason"
-          label="Reason for Adjustment"
-          rules={[{ required: true, message: 'Please select a reason.' }]}
+          name="notes"
+          label="Reason / Notes for Adjustment"
+          rules={[{ required: true, message: 'Please provide a reason for this change.' }]}
         >
-          <Select placeholder="Select a reason">
-            {manualReasons.map(reason => (
-              <Option key={reason} value={reason}>{reason.replace('_', ' ')}</Option>
-            ))}
-          </Select>
-        </Form.Item>
-        <Form.Item name="notes" label="Notes (Optional)">
-          <TextArea rows={3} placeholder="Provide details, e.g., 'Stock take count mismatch' or '1 unit dropped during restocking'." />
+          <TextArea rows={3} placeholder="e.g., Annual stock take correction, found misplaced items." />
         </Form.Item>
       </Form>
     </Modal>
