@@ -3,6 +3,8 @@ import { Modal, Form, Input, Button, message, InputNumber, Switch, Space } from 
 import { useMutation } from '@apollo/client';
 import { CREATE_TAX, UPDATE_TAX } from '../../apollo/mutations/taxMutations';
 import { GET_TAXES } from '../../apollo/queries/taxQueries';
+import { useAntdNotice } from '../../contexts/AntdNoticeContext';
+
 
 const { TextArea } = Input;
 
@@ -29,6 +31,8 @@ const TaxFormModal: React.FC<TaxFormModalProps> = ({ open, onClose, taxToEdit })
 
   const [createTax, { loading: createLoading }] = useMutation(CREATE_TAX);
   const [updateTax, { loading: updateLoading }] = useMutation(UPDATE_TAX);
+  const { messageApi } = useAntdNotice();
+  
 
   useEffect(() => {
     if (open) {
@@ -59,17 +63,17 @@ const TaxFormModal: React.FC<TaxFormModalProps> = ({ open, onClose, taxToEdit })
           variables: { id: taxToEdit.id, updateTaxInput: processedValues },
           ...mutationOptions,
         });
-        message.success('Tax rate updated successfully!');
+        messageApi.success('Tax rate updated successfully!');
       } else {
         await createTax({
           variables: { createTaxInput: processedValues },
           ...mutationOptions,
         });
-        message.success('Tax rate created successfully!');
+        messageApi.success('Tax rate created successfully!');
       }
       onClose();
     } catch (e: any) {
-      message.error(`Operation failed: ${e.message}`);
+      messageApi.error(`Operation failed: ${e.message}`);
     }
   };
 

@@ -4,6 +4,8 @@ import { useQuery, useMutation } from '@apollo/client';
 import { CREATE_EXPENSE, UPDATE_EXPENSE } from '../../apollo/mutations/expenseMutations';
 import { GET_EXPENSE_CATEGORIES, GET_EXPENSES } from '../../apollo/queries/expenseQueries';
 import moment, { type Moment } from 'moment';
+import { useAntdNotice } from '../../contexts/AntdNoticeContext';
+
 
 const { TextArea } = Input;
 const { Option } = Select;
@@ -36,6 +38,7 @@ const ExpenseFormModal: React.FC<ExpenseFormModalProps> = ({ open, onClose, expe
   const { data: categoriesData, loading: categoriesLoading } = useQuery<{ expenseCategories: CategoryInfo[] }>(GET_EXPENSE_CATEGORIES);
   const [createExpense, { loading: createLoading }] = useMutation(CREATE_EXPENSE);
   const [updateExpense, { loading: updateLoading }] = useMutation(UPDATE_EXPENSE);
+  const { messageApi } = useAntdNotice();
 
   useEffect(() => {
     if (open) {
@@ -72,14 +75,14 @@ const ExpenseFormModal: React.FC<ExpenseFormModalProps> = ({ open, onClose, expe
     try {
       if (expenseToEdit) {
         await updateExpense({ variables: { id: expenseToEdit.id, updateExpenseInput: variables }, ...mutationOptions });
-        message.success('Expense updated successfully!');
+        messageApi.success('Expense updated successfully!');
       } else {
         await createExpense({ variables: { createExpenseInput: variables }, ...mutationOptions });
-        message.success('Expense created successfully!');
+        messageApi.success('Expense created successfully!');
       }
       onClose();
     } catch (e: any) {
-      message.error(`Operation failed: ${e.message}`);
+      messageApi.error(`Operation failed: ${e.message}`);
     }
   };
 

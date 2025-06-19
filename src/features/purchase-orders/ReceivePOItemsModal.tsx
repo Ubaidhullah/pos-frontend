@@ -3,6 +3,7 @@ import { Modal, Form, Button, message, Spin, Typography, Table, InputNumber, Dat
 import { useMutation, useLazyQuery } from '@apollo/client';
 import { RECEIVE_PURCHASE_ORDER_ITEMS } from '../../apollo/mutations/purchaseOrderMutations';
 import { GET_PURCHASE_ORDERS, GET_PURCHASE_ORDER_BY_ID } from '../../apollo/queries/purchaseOrderQueries';
+import { useAntdNotice } from '../../contexts/AntdNoticeContext';
 import dayjs from 'dayjs';
 
 const { Text, Title } = Typography;
@@ -43,6 +44,8 @@ interface ReceivePOItemsModalProps {
 const ReceivePOItemsModal: React.FC<ReceivePOItemsModalProps> = ({ open, onClose, purchaseOrderId }) => {
   const [form] = Form.useForm<ReceivePOFormValues>();
   const [poDetails, setPoDetails] = useState<PurchaseOrderForReceiving | null>(null);
+  const { messageApi } = useAntdNotice();
+  
 
   const [fetchPODetails, { data: poData, loading: poLoading, error: poError }] = useLazyQuery(
     GET_PURCHASE_ORDER_BY_ID,
@@ -53,11 +56,11 @@ const ReceivePOItemsModal: React.FC<ReceivePOItemsModalProps> = ({ open, onClose
 
   const [receiveItems, { loading: receiveLoading }] = useMutation(RECEIVE_PURCHASE_ORDER_ITEMS, {
     onCompleted: (data) => {
-      message.success(`Items received for PO #${poDetails?.poNumber}. New PO Status: ${data.receivePurchaseOrderItems.status}`);
+      messageApi.success(`Items received for PO #${poDetails?.poNumber}. New PO Status: ${data.receivePurchaseOrderItems.status}`);
       onClose();
     },
     onError: (error) => {
-      message.error(`Failed to receive items: ${error.message}`);
+      messageApi.error(`Failed to receive items: ${error.message}`);
     },
     refetchQueries: [
       { query: GET_PURCHASE_ORDERS },
@@ -93,7 +96,7 @@ const ReceivePOItemsModal: React.FC<ReceivePOItemsModalProps> = ({ open, onClose
 
   const handleFinish = async (values: ReceivePOFormValues) => {
     if (!poDetails) {
-      message.error("PO details not loaded.");
+      messageApi.error("PO details not loaded.");
       return;
     }
     console.log("Form values on finish:", JSON.stringify(values, null, 2)); // DIAGNOSTIC
@@ -112,25 +115,25 @@ const ReceivePOItemsModal: React.FC<ReceivePOItemsModalProps> = ({ open, onClose
       });
 
     if (itemsToSubmit.length === 0) {
-      message.warning('Please enter quantities for at least one item to receive.');
+      messageApi.warning('Please enter quantities for at least one item to receive.');
       return;
     }
 
     // Client-side validation for over-receiving
     for (const submittedItem of itemsToSubmit) {
       if (!submittedItem.purchaseOrderItemId) {
-        message.error('A system error occurred: PO Item ID is missing. Please try again.');
+        messageApi.error('A system error occurred: PO Item ID is missing. Please try again.');
         return;
       }
       const originalItem = poDetails.items.find(i => i.id === submittedItem.purchaseOrderItemId);
       if (originalItem) {
         const remainingToReceive = originalItem.quantityOrdered - originalItem.quantityReceived;
         if (submittedItem.quantityReceivedThisTime > remainingToReceive) {
-          message.error(`Cannot receive ${submittedItem.quantityReceivedThisTime} for ${originalItem.product.name}. Max remaining: ${remainingToReceive}.`);
+          messageApi.error(`Cannot receive ${submittedItem.quantityReceivedThisTime} for ${originalItem.product.name}. Max remaining: ${remainingToReceive}.`);
           return;
         }
       } else {
-          message.error(`Could not find original item details for ID ${submittedItem.purchaseOrderItemId}.`);
+          messageApi.error(`Could not find original item details for ID ${submittedItem.purchaseOrderItemId}.`);
           return;
       }
     }

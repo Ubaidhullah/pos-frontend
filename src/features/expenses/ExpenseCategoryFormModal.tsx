@@ -3,6 +3,8 @@ import { Modal, Form, Input, Button, message } from 'antd';
 import { useMutation } from '@apollo/client';
 import { CREATE_EXPENSE_CATEGORY, UPDATE_EXPENSE_CATEGORY } from '../../apollo/mutations/expenseMutations';
 import { GET_EXPENSE_CATEGORIES } from '../../apollo/queries/expenseQueries';
+import { useAntdNotice } from '../../contexts/AntdNoticeContext';
+
 
 const { TextArea } = Input;
 
@@ -26,6 +28,8 @@ const ExpenseCategoryFormModal: React.FC<CategoryFormModalProps> = ({ open, onCl
 
   const [createCategory, { loading: createLoading }] = useMutation(CREATE_EXPENSE_CATEGORY);
   const [updateCategory, { loading: updateLoading }] = useMutation(UPDATE_EXPENSE_CATEGORY);
+  const { messageApi } = useAntdNotice();
+  
 
   useEffect(() => {
     if (open) {
@@ -48,17 +52,17 @@ const ExpenseCategoryFormModal: React.FC<CategoryFormModalProps> = ({ open, onCl
           variables: { id: categoryToEdit.id, updateExpenseCategoryInput: values },
           ...mutationOptions,
         });
-        message.success('Category updated successfully!');
+        messageApi.success('Category updated successfully!');
       } else {
         await createCategory({
           variables: { createExpenseCategoryInput: values },
           ...mutationOptions,
         });
-        message.success('Category created successfully!');
+        messageApi.success('Category created successfully!');
       }
       onClose();
     } catch (e: any) {
-      message.error(`Operation failed: ${e.message}`);
+      messageApi.error(`Operation failed: ${e.message}`);
     }
   };
 

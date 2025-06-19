@@ -3,6 +3,8 @@ import { Modal, Form, Input, Button, message } from 'antd';
 import { useMutation } from '@apollo/client';
 import { CREATE_CUSTOMER, UPDATE_CUSTOMER } from '../../apollo/mutations/customerMutations';
 import { GET_CUSTOMERS } from '../../apollo/queries/customerQueries';
+import { useAntdNotice } from '../../contexts/AntdNoticeContext';
+
 
 const { TextArea } = Input;
 
@@ -26,6 +28,8 @@ const CustomerForm: React.FC<CustomerFormProps> = ({ open, onClose, customerToEd
 
   const [createCustomer, { loading: createLoading }] = useMutation(CREATE_CUSTOMER);
   const [updateCustomer, { loading: updateLoading }] = useMutation(UPDATE_CUSTOMER);
+  const { messageApi } = useAntdNotice();
+  
 
   useEffect(() => {
     if (open) {
@@ -44,18 +48,18 @@ const CustomerForm: React.FC<CustomerFormProps> = ({ open, onClose, customerToEd
           variables: { id: customerToEdit.id, updateCustomerInput: values },
           refetchQueries: [{ query: GET_CUSTOMERS, variables: { searchTerm: '' } }], // Refetch list
         });
-        message.success('Customer updated successfully!');
+        messageApi.success('Customer updated successfully!');
       } else {
         await createCustomer({
           variables: { createCustomerInput: values },
           refetchQueries: [{ query: GET_CUSTOMERS, variables: { searchTerm: '' } }], // Refetch list
         });
-        message.success('Customer created successfully!');
+        messageApi.success('Customer created successfully!');
       }
       form.resetFields();
       onClose();
     } catch (e: any) {
-      message.error(`Operation failed: ${e.message}`);
+      messageApi.error(`Operation failed: ${e.message}`);
     }
   };
 
