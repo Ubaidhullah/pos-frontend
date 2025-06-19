@@ -29,6 +29,7 @@ import RegisterCompanyPage from './features/auth/RegisterCompanyPage';
 
 import { Role } from './common/enums/role.enum';
 import AuditLogPage from './features/audit-logs/AuditLogPage';
+import OrderDetailPage from './features/orders/OrderDetailPage';
 
 const AppRoutes: React.FC = () => {
   const { isAuthenticated, isLoading } = useAuth();
@@ -56,6 +57,7 @@ const AppRoutes: React.FC = () => {
           <Route index element={<DashboardPage />} />
           <Route path="pos" element={<PosInterfacePage />} />
           <Route path="orders" element={<OrderListPage />} />
+          <Route path="orders/:id" element={<OrderDetailPage />} />
           <Route path="customers" element={<CustomerListPage />} />
           <Route path='expenses' element={<ExpensePage/>}/>
 

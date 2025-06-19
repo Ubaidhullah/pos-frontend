@@ -17,10 +17,12 @@ import {
   Space
 } from 'antd';
 import { SearchOutlined, ArrowLeftOutlined, UndoOutlined } from '@ant-design/icons';
-import { GET_ORDER_FOR_RETURN } from '../../apollo/queries/orderQueries';
+// import { GET_ORDER_FOR_RETURN } from '../../apollo/queries/orderQueries';
+import { GET_ORDER_BY_BILL_NUMBER } from '../../apollo/queries/orderQueries';
 import { CREATE_SALES_RETURN } from '../../apollo/mutations/returnMutations';
 import { useAuth } from '../../contexts/AuthContext';
 import { Role } from '../../common/enums/role.enum';
+import { useAntdNotice } from '../../contexts/AntdNoticeContext';
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
@@ -57,24 +59,27 @@ const ReturnsPage: React.FC = () => {
   const [originalOrder, setOriginalOrder] = useState<OriginalOrder | null>(null);
   const [totalRefund, setTotalRefund] = useState<number>(0);
 
-  const [findOrder, { loading: findingOrder, error: findError }] = useLazyQuery<{ order: OriginalOrder }>(
-    GET_ORDER_FOR_RETURN,
+  const { messageApi } = useAntdNotice();
+
+  const [findOrder, { loading: findingOrder, error: findError }] = useLazyQuery<{ orderByBillNumber: OriginalOrder }>(
+    GET_ORDER_BY_BILL_NUMBER,
     {
       onCompleted: (data) => {
-        if (data?.order) {
-          if (data.order.status === 'RETURNED') {
-              message.warning('This order has already been fully returned.');
+        if (data?.orderByBillNumber) {
+          if (data.orderByBillNumber.status === 'RETURNED') {
+              messageApi.warning('This order has already been fully returned.');
               setOriginalOrder(null);
               return;
           }
-          setOriginalOrder(data.order);
-          const initialFormItems = data.order.items.map(item => ({
-            originalOrderItemId: item.id,
-            quantityToReturn: 0,
-          }));
-          form.setFieldsValue({ items: initialFormItems });
+          setOriginalOrder(data.orderByBillNumber);
+          form.setFieldsValue({
+            items: data.orderByBillNumber.items.map(item => ({
+              originalOrderItemId: item.id,
+              quantityToReturn: 0,
+            })),
+          });
         } else {
-          message.error('Order not found.');
+          messageApi.error('Order not found with that Bill Number.');
           setOriginalOrder(null);
         }
       },
@@ -84,23 +89,21 @@ const ReturnsPage: React.FC = () => {
   
   const [createReturn, { loading: processingReturn }] = useMutation(CREATE_SALES_RETURN, {
     onCompleted: (data) => {
-      message.success(`Return #${data.createSalesReturn.returnNumber} processed successfully! Refund: $${data.createSalesReturn.totalRefundAmount.toFixed(2)}`);
+      messageApi.success(`Return #${data.createSalesReturn.returnNumber} processed successfully! Refund: $${data.createSalesReturn.totalRefundAmount.toFixed(2)}`);
       handleReset();
     },
     onError: (err) => {
-      message.error(`Failed to process return: ${err.message}`);
+      messageApi.error(`Failed to process return: ${err.message}`);
     },
   });
 
-  const handleFindOrder = (orderIdOrBillNumber: string) => {
-    if (!orderIdOrBillNumber) {
-      message.warning('Please enter an Order ID or Bill Number.');
+  const handleFindOrder = (billNumber: string) => {
+    if (!billNumber) {
+      messageApi.warning('Please enter a Bill Number.');
       return;
     }
     handleReset();
-    // Assuming your backend 'order' query can resolve by ID.
-    // If you configured it to also find by billNumber, this works. Otherwise, you might need two search fields.
-    findOrder({ variables: { id: orderIdOrBillNumber } });
+    findOrder({ variables: { billNumber: billNumber } });
   };
 
   const handleReset = () => {
@@ -134,13 +137,13 @@ const ReturnsPage: React.FC = () => {
       }));
     
     if (itemsToReturn.length === 0) {
-      message.error('Please enter a quantity for at least one item to return.');
+      messageApi.error('Please enter a quantity for at least one item to return.');
       return;
     }
 
     // Double-check if any item is missing the ID before sending
     if (itemsToReturn.some(item => !item.originalOrderItemId)) {
-        message.error("A system error occurred: an item's ID is missing. Please refresh and try again.");
+        messageApi.error("A system error occurred: an item's ID is missing. Please refresh and try again.");
         console.error("Payload missing originalOrderItemId:", itemsToReturn);
         return;
     }
@@ -212,7 +215,7 @@ const ReturnsPage: React.FC = () => {
       
       <Card title="Step 1: Find Original Order" style={{ marginBottom: 24 }}>
         <Input.Search
-          placeholder="Enter original Order ID or Bill Number"
+          placeholder="Enter original Bill Number (e.g., INV-2025-000123)"
           enterButton={<Button type="primary" icon={<SearchOutlined />}>Find Order</Button>}
           size="large"
           onSearch={handleFindOrder}

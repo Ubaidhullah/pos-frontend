@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery, useLazyQuery } from '@apollo/client';
-import { Table, Tag, Button, DatePicker, Select, Space, Modal, List, Typography, message } from 'antd';
+import { useNavigate } from 'react-router-dom';
+import { Table, Tag, Button, DatePicker, Select, Space, Modal, List, Typography, message, Tooltip } from 'antd';
 import { EyeOutlined, DownloadOutlined } from '@ant-design/icons';
 import dayjs, { Dayjs } from 'dayjs';
 import { GET_ORDERS } from '../../apollo/queries/orderQueries';
@@ -17,6 +18,7 @@ interface UserInfo { id: string; name?: string; email: string; }
 interface CustomerInfo { id: string; name: string; }
 
 interface OrderData {
+  billNumber: string;
   id: string;
   totalAmount: number;
   status: string;
@@ -42,6 +44,7 @@ const OrderListPage: React.FC = () => {
 
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<OrderData | null>(null);
+  const navigate = useNavigate();
 
   const { hasRole } = useAuth(); // If role-based features are added
 
@@ -109,19 +112,36 @@ const OrderListPage: React.FC = () => {
   if (error) message.error(`Error loading orders: ${error.message}`);
 
   const columns = [
-    { title: 'Order ID', dataIndex: 'id', key: 'id', render: (id: string) => <code>{id.slice(0, 8)}...</code> },
+ {
+  title: 'Bill No',
+  dataIndex: 'billNumber',
+  key: 'billNumber',
+  render: (id: string) => (
+    <Space>
+      <Tooltip title={id}>
+        <code>{id.slice(0, 8)}...</code>
+      </Tooltip>
+      <Text copyable={{ text: id }} />
+    </Space>
+  ),
+   },
     { title: 'Date', dataIndex: 'createdAt', key: 'createdAt', render: (date: string) => dayjs(date).format('YYYY-MM-DD HH:mm') },
     { title: 'Customer', dataIndex: ['customer', 'name'], key: 'customerName', render: (name?: string) => name || <Text type="secondary">N/A</Text> },
     { title: 'Cashier', dataIndex: ['user', 'name'], key: 'userName', render: (name?: string, record?: OrderData) => name || record?.user.email },
     { title: 'Total', dataIndex: 'totalAmount', key: 'totalAmount', render: (amount: number) => `$${amount.toFixed(2)}` },
     { title: 'Status', dataIndex: 'status', key: 'status', render: (status: string) => <Tag color={orderStatusColors[status] || 'default'}>{status.toUpperCase()}</Tag> },
     {
-      title: 'Actions',
-      key: 'actions',
-      render: (_: any, record: OrderData) => (
-        <Button icon={<EyeOutlined />} onClick={() => showOrderDetailModal(record)}>Details</Button>
-      ),
-    },
+        title: 'Actions',
+        key: 'actions',
+        render: (_: any, record: OrderData) => (
+          <Button
+            icon={<EyeOutlined />}
+            onClick={() => navigate(`/orders/${record.id}`)}
+          >
+            Details
+          </Button>
+        ),
+      }
   ];
 
   return (
