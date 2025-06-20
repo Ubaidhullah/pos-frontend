@@ -4,7 +4,7 @@ import { DeleteOutlined, PlusOutlined } from '@ant-design/icons';
 import { useMutation } from '@apollo/client';
 import { ADD_PAYMENT_TO_ORDER_MUTATION } from '../../apollo/mutations/orderMutations';
 import {  GET_ORDERS, GET_ORDER_DETAILS_BY_ID } from '../../apollo/queries/orderQueries';
-import PaymentFormSection from './PaymentFormSection'; // We will create a reusable component
+import PaymentFormSection from './PaymentFormSection'; 
 import { useAntdNotice } from '../../contexts/AntdNoticeContext';
 import type { PaymentInput } from './PaymentModal';
 
@@ -61,7 +61,6 @@ const AddPaymentModal: React.FC<AddPaymentModalProps> = ({ open, onClose, order 
         });
     };
 
-    // Reset form when modal is closed or order changes
     useEffect(() => {
         if (!open) {
             form.resetFields();
@@ -96,10 +95,6 @@ const AddPaymentModal: React.FC<AddPaymentModalProps> = ({ open, onClose, order 
     );
 };
 
-// --- Reusable Payment Form Section ---
-// To avoid code duplication, you can create this in a separate file,
-// e.g., src/features/pos/PaymentFormSection.tsx and import it in both
-// PaymentModal.tsx and AddPaymentModal.tsx
 
 export default AddPaymentModal;
 

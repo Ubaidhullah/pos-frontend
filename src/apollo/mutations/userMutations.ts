@@ -10,3 +10,15 @@ export const UPDATE_USER_ROLE = gql`
     }
   }
 `;
+
+export const CREATE_USER = gql`
+  mutation CreateUser($createUserInput: CreateUserInput!) {
+    createUser(createUserInput: $createUserInput) {
+      id
+      name
+      email
+      username
+      role
+    }
+  }
+`;

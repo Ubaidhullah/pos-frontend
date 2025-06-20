@@ -6,19 +6,6 @@ import { useAntdNotice } from '../../contexts/AntdNoticeContext';
 
 
 
-// Create this enum file on your frontend
-// src/features/enums/payment-method.enum.ts
-// export enum PaymentMethod {
-//   CASH = 'CASH',
-//   CARD = 'CARD',
-//   BANK_TRANSFER = 'BANK_TRANSFER',
-//   DIGITAL_WALLET = 'DIGITAL_WALLET',
-//   CHEQUE = 'CHEQUE',
-//   GIFT_CARD = 'GIFT_CARD',
-//   STORE_CREDIT = 'STORE_CREDIT',
-// }
-
-
 export interface PaymentInput {
   method: PaymentMethod;
   amount: number;

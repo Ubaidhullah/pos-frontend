@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
 import { useQuery } from '@apollo/client';
 import { Table, Button, Space, Tag, message, Tooltip, Typography } from 'antd';
-import { EditOutlined, UserSwitchOutlined } from '@ant-design/icons';
+import { EditOutlined, PlusOutlined, UserSwitchOutlined } from '@ant-design/icons';
 import moment from 'moment';
 import { GET_USERS } from '../../apollo/queries/userQueries';
 import { useAuth } from '../../contexts/AuthContext'; // For role checking if needed, though page access is primary
 import { Role } from '../../common/enums/role.enum';
 import UpdateUserRoleModal from './UpdateUserRoleModal'; // Import the modal
 import type { ColumnsType } from 'antd/es/table';
+import CreateUserModal from './CreateUserModal';
 
 
 const { Title } = Typography;
@@ -25,6 +26,7 @@ const UserListPage: React.FC = () => {
   const { user: currentUser, hasRole } = useAuth(); // Get current user for role checking if needed
 
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
 
   const showUpdateRoleModal = (userToEdit: User) => {
@@ -115,8 +117,12 @@ const UserListPage: React.FC = () => {
     <div>
       <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Title level={2}>User Management</Title>
-        {/* No "Add User" button here, as user creation is via 'Register' in AuthModule for now.
-            If Admins should create users directly, you'd add a form and mutation for that. */}
+        {hasRole([Role.ADMIN]) && (
+          // 👇 New Button to open the create modal
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsCreateModalOpen(true)}>
+            Create User
+          </Button>
+        )}
       </div>
       <Table
         columns={columns}
@@ -133,6 +139,14 @@ const UserListPage: React.FC = () => {
             userToUpdate={editingUser}
         />
       )}
+
+      <CreateUserModal
+        open={isCreateModalOpen}
+        onClose={() => {
+            setIsCreateModalOpen(false);
+            refetch(); 
+        }}
+      />
     </div>
   );
 };
