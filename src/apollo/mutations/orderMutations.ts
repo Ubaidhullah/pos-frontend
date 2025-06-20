@@ -9,12 +9,12 @@ export const CREATE_ORDER_MUTATION = gql`
       grandTotal 
       amountPaid
       changeGiven
-      # Also fetch the full details for the receipt
       createdAt
       itemsTotal
       taxAmount
       discountAmount
       subTotal
+      status
       user { name, email }
       customer { name }
       items {
@@ -31,6 +31,17 @@ export const CREATE_ORDER_MUTATION = gql`
       }
       customer { name }
       createdAt
+    }
+  }
+`;
+
+export const ADD_PAYMENT_TO_ORDER_MUTATION = gql`
+  mutation AddPaymentToOrder($addPaymentToOrderInput: AddPaymentToOrderInput!) {
+    addPaymentToOrder(addPaymentToOrderInput: $addPaymentToOrderInput) {
+      id
+      status
+      amountPaid
+      grandTotal
     }
   }
 `;

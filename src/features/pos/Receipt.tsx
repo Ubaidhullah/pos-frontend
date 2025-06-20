@@ -20,6 +20,7 @@ export interface OrderDataForReceipt {
   grandTotal: number;
   amountPaid: number;
   changeGiven: number;
+  status: string;
   user?: { name?: string; email: string };
   customer?: { name?: string };
   items: {

@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Modal, Form, Button, Select, InputNumber, Space, Statistic, Divider, Row, Col, message } from 'antd';
 import { DollarCircleOutlined, PlusOutlined, DeleteOutlined } from '@ant-design/icons';
 import { PaymentMethod } from '../../common/enums/payment-method.enum'; // Create this frontend enum
+import { useAntdNotice } from '../../contexts/AntdNoticeContext';
+
 
 
 // Create this enum file on your frontend
@@ -29,11 +31,14 @@ interface PaymentModalProps {
   totalAmountDue: number;
   onSubmit: (payments: PaymentInput[]) => void;
   isProcessing: boolean;
+  isLayaway?: boolean;
 }
 
-const PaymentModal: React.FC<PaymentModalProps> = ({ open, onClose, totalAmountDue, onSubmit, isProcessing }) => {
+const PaymentModal: React.FC<PaymentModalProps> = ({ open, onClose, totalAmountDue, onSubmit, isProcessing, isLayaway }) => {
   const [form] = Form.useForm();
   const [totalPaid, setTotalPaid] = useState(0);
+  const { messageApi } = useAntdNotice();
+  
 
   // Reset form when modal is opened or closed
   useEffect(() => {
@@ -55,10 +60,10 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ open, onClose, totalAmountD
   };
 
   const handleFinish = (values: { payments: PaymentInput[] }) => {
-    if (totalPaid < totalAmountDue) {
-        message.error(`Amount paid ($${totalPaid.toFixed(2)}) is less than total due ($${totalAmountDue.toFixed(2)}).`);
-        return;
-    }
+    if (!isLayaway && totalPaid < totalAmountDue) {
+            messageApi.error(`Amount paid is less than total due.`);
+            return;
+        }
     const validPayments = values.payments.filter(p => p && p.amount > 0);
     onSubmit(validPayments);
   };
@@ -72,19 +77,14 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ open, onClose, totalAmountD
       onCancel={onClose}
       width={600}
       footer={[
-        <Button key="back" onClick={onClose} disabled={isProcessing}>
-          Cancel
-        </Button>,
-        <Button
-          key="submit"
-          type="primary"
-          loading={isProcessing}
-          onClick={() => form.submit()}
-          disabled={totalPaid < totalAmountDue}
-        >
-          Confirm & Complete Sale
-        </Button>,
-      ]}
+                <Button key="back" onClick={onClose} disabled={isProcessing}>Cancel</Button>,
+                <Button key="submit" type="primary" loading={isProcessing} onClick={form.submit}
+                    // Disable button only if it's NOT a layaway and payment is insufficient
+                    disabled={!isLayaway && totalPaid < totalAmountDue}
+                >
+                    {isLayaway ? 'Confirm Deposit & Save' : 'Confirm & Complete Sale'}
+                </Button>,
+            ]}
       destroyOnClose
     >
       <Row gutter={16} align="middle" style={{ marginBottom: 24 }}>

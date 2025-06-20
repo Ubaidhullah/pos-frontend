@@ -20,9 +20,10 @@ import {
   Alert,
   Empty,
   Input,
-  Image
+  Image,
+  Switch
 } from 'antd';
-import { ShoppingCartOutlined, DeleteOutlined, DollarCircleOutlined, TagOutlined, SearchOutlined, EditOutlined } from '@ant-design/icons';
+import { ShoppingCartOutlined, DeleteOutlined, DollarCircleOutlined, TagOutlined, SearchOutlined, EditOutlined, ScheduleOutlined } from '@ant-design/icons';
 import { useReactToPrint } from 'react-to-print';
 // Local Imports
 import { GET_PRODUCTS } from '../../apollo/queries/productQueries';
@@ -112,6 +113,7 @@ const PosInterfacePage: React.FC = () => {
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [lastCompletedOrder, setLastCompletedOrder] = useState<OrderDataForReceipt | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [isLayawayMode, setIsLayawayMode] = useState(false);
 
   // --- Refs & Hooks ---
   const { hasRole } = useAuth();
@@ -136,13 +138,16 @@ const PosInterfacePage: React.FC = () => {
   const [createOrder, { loading: orderLoading }] = useMutation(CREATE_ORDER_MUTATION, {
     onCompleted: (data) => {
       const newOrderData = data.createOrder as OrderDataForReceipt;
+      if (newOrderData.status === 'LAYAWAY') {
+        messageApi.success(`Layaway Order #${newOrderData.billNumber} created successfully!`);
+      } else {
       setLastCompletedOrder(newOrderData);
       console.log('Receipt Order:', lastCompletedOrder);
       setTimeout(() => {
         const printButton = (<Button onClick={handlePrint}>Print Receipt</Button>);
         messageApi.success(<Space><span>{`Order #${newOrderData.billNumber} created!`}</span>{printButton}</Space>, 10);
       }, 100);
-
+    }
       setCart([]);
       setSelectedCustomerId(undefined);
       setIsPaymentModalOpen(false);
@@ -274,7 +279,7 @@ const handlePriceEdit = (productId: string, newPrice: number) => {
         discountType: item.discountType,
         discountValue: item.discountValue,
       })),
-      payments, customerId: selectedCustomerId, orderDiscountType: cartDiscount.type, orderDiscountValue: cartDiscount.value,
+      payments, customerId: selectedCustomerId, orderDiscountType: cartDiscount.type, orderDiscountValue: cartDiscount.value,isLayaway: isLayawayMode,
     }}});
   };
 
@@ -457,19 +462,40 @@ const handlePriceEdit = (productId: string, newPrice: number) => {
               )}
             </div>
             <Divider />
+            
             <div style={{ textAlign: 'right' }}>
               <Row justify="space-between"><Col><Text>Subtotal:</Text></Col><Col><Text>${itemsTotal.toFixed(2)}</Text></Col></Row>
               <Row justify="space-between"><Col><Space><Text type="success">Discount:</Text><Popover content={<DiscountPopoverContent onApply={applyCartDiscount} initialValues={cartDiscount} />} title="Apply Cart Discount" trigger="click"><Button type="link" icon={<TagOutlined />} size="small" style={{ padding: 0 }}/></Popover></Space></Col><Col><Text type="success">-${totalDiscount.toFixed(2)}</Text></Col></Row>
               <Row justify="space-between"><Col><Text>Tax:</Text></Col><Col><Text>${totalTax.toFixed(2)}</Text></Col></Row>
               <Divider style={{margin: '8px 0'}}/>
               <Title level={4} style={{margin: 0}}>Total: ${grandTotal.toFixed(2)}</Title>
-              <Button type="primary" size="large" icon={<DollarCircleOutlined />} onClick={handleCheckout} disabled={cart.length === 0 || orderLoading} style={{ width: '100%', marginTop: '10px' }}>Proceed to Payment</Button>
+                <Space>
+                    <Switch checked={isLayawayMode} onChange={setIsLayawayMode} />
+                    <Text strong>Save as Layaway Order</Text>
+                </Space>
+                {isLayawayMode && <Text type="secondary" style={{display: 'block', marginTop: '4px'}}>
+                    Inventory will be reserved. Full payment is not required now.
+                </Text>}
             </div>
+            
+            <div style={{ textAlign: 'right', marginTop: 16 }}>
+              {/* ... Totals display ... */}
+              <Button
+                type="primary"
+                size="large"
+                icon={isLayawayMode ? <ScheduleOutlined /> : <DollarCircleOutlined />}
+                onClick={handleCheckout}
+                disabled={cart.length === 0 || orderLoading}
+                style={{ width: '100%', marginTop: '10px' }}
+              >
+                {isLayawayMode ? 'Save Layaway & Add Deposit' : 'Proceed to Payment'}
+              </Button>
+               </div>
           </Card>
         </Col>
       </Row>
 
-      <PaymentModal open={isPaymentModalOpen} onClose={() => setIsPaymentModalOpen(false)} totalAmountDue={grandTotal} onSubmit={handleProcessPayment} isProcessing={orderLoading} />
+      <PaymentModal open={isPaymentModalOpen} onClose={() => setIsPaymentModalOpen(false)} totalAmountDue={grandTotal} onSubmit={handleProcessPayment} isProcessing={orderLoading} isLayaway={isLayawayMode} />
       
       <div className="receipt-container-hidden">
         <div ref={receiptRef} tabIndex={-1}>

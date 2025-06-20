@@ -2,11 +2,14 @@ import React, { useState } from 'react';
 import { useQuery, useLazyQuery } from '@apollo/client';
 import { useNavigate } from 'react-router-dom';
 import { Table, Tag, Button, DatePicker, Select, Space, Modal, List, Typography, message, Tooltip } from 'antd';
-import { EyeOutlined, DownloadOutlined } from '@ant-design/icons';
+import { EyeOutlined, DownloadOutlined, DollarCircleOutlined } from '@ant-design/icons';
 import dayjs, { Dayjs } from 'dayjs';
 import { GET_ORDERS } from '../../apollo/queries/orderQueries';
 import { EXPORT_ORDERS_AS_CSV } from '../../apollo/queries/exportQueries';
 import { useAuth } from '../../contexts/AuthContext';
+import AddPaymentModal from '../pos/AddPaymentModal';
+import { Role } from '../../common/enums/role.enum';
+import { OrderStatus } from '../../common/enums/order-status.enum';
 
 const { RangePicker } = DatePicker;
 const { Option } = Select;
@@ -34,6 +37,7 @@ const orderStatusColors: { [key: string]: string } = {
   CANCELLED: 'red',
   PROCESSING: 'blue',
   RETURNED: 'purple',
+  LAYAWAY: 'orange',
 };
 
 const OrderListPage: React.FC = () => {
@@ -45,6 +49,14 @@ const OrderListPage: React.FC = () => {
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<OrderData | null>(null);
   const navigate = useNavigate();
+
+  const [isAddPaymentModalOpen, setIsAddPaymentModalOpen] = useState(false);
+    const [selectedPOForAction, setSelectedPOForAction] = useState<any | null>(null);
+
+    const openAddPaymentModal = (order: any) => {
+        setSelectedPOForAction(order);
+        setIsAddPaymentModalOpen(true);
+    };
 
   const { hasRole } = useAuth(); // If role-based features are added
 
@@ -131,17 +143,31 @@ const OrderListPage: React.FC = () => {
     { title: 'Total', dataIndex: 'totalAmount', key: 'totalAmount', render: (amount: number) => `$${amount.toFixed(2)}` },
     { title: 'Status', dataIndex: 'status', key: 'status', render: (status: string) => <Tag color={orderStatusColors[status] || 'default'}>{status.toUpperCase()}</Tag> },
     {
-        title: 'Actions',
-        key: 'actions',
-        render: (_: any, record: OrderData) => (
-          <Button
-            icon={<EyeOutlined />}
-            onClick={() => navigate(`/orders/${record.id}`)}
-          >
-            Details
-          </Button>
-        ),
-      }
+  title: 'Actions',
+  key: 'actions',
+  render: (_: any, record: OrderData) => (
+    <Space>
+      <Button
+        icon={<EyeOutlined />}
+        onClick={() => navigate(`/orders/${record.id}`)}
+      >
+        Details
+      </Button>
+
+      {hasRole([Role.ADMIN, Role.MANAGER, Role.CASHIER]) &&
+        record.status === OrderStatus.LAYAWAY && (
+          <Tooltip title="Add Payment">
+            <Button
+              size="small"
+              icon={<DollarCircleOutlined />}
+              onClick={() => openAddPaymentModal(record)}
+            />
+          </Tooltip>
+        )}
+    </Space>
+  ),
+}
+
   ];
 
   return (
@@ -206,6 +232,11 @@ const OrderListPage: React.FC = () => {
           </>
         )}
       </Modal>
+      <AddPaymentModal
+                open={isAddPaymentModalOpen}
+                onClose={() => setIsAddPaymentModalOpen(false)}
+                order={selectedPOForAction}
+            />
     </div>
   );
 };
