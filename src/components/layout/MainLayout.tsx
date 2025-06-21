@@ -22,6 +22,7 @@ import {
   IdcardOutlined,
   SettingOutlined,
   FileSearchOutlined,
+  FileTextOutlined,
 } from '@ant-design/icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { Role } from '../../common/enums/role.enum';
@@ -76,6 +77,7 @@ const MainLayout: React.FC = () => {
     navItems.push({ key: '/pos', icon: <ShoppingCartOutlined />, label: <Link to="/pos">Point of Sale</Link> });
 
     if (hasRole([Role.ADMIN, Role.MANAGER, Role.CASHIER])) {
+      navItems.push(getItem(<Link to="/quotations">Quotations</Link>, '/quotations', <FileTextOutlined />));
       navItems.push({ key: '/customers', icon: <SolutionOutlined />, label: <Link to="/customers">Customers</Link> });
       navItems.push({ key: '/orders', icon: <ShoppingOutlined />, label: <Link to="/orders">Orders</Link> });
       navItems.push({ key: '/reports', icon: <PieChartOutlined />, label: <Link to="/reports">Reports</Link> });

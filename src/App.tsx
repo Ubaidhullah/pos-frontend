@@ -26,10 +26,11 @@ import ReturnsPage from './features/returns/ReturnsPage';
 import { AntdNoticeProvider } from './contexts/AntdNoticeContext'; 
 import TaxListPage from './features/taxes/TaxListPage';
 import RegisterCompanyPage from './features/auth/RegisterCompanyPage';
-
 import { Role } from './common/enums/role.enum';
 import AuditLogPage from './features/audit-logs/AuditLogPage';
 import OrderDetailPage from './features/orders/OrderDetailPage';
+import QuotationListPage from './features/quotations/QuotationListPage';
+import QuotationFormPage from './features/quotations/QuotationFormPage';
 
 const AppRoutes: React.FC = () => {
   const { isAuthenticated, isLoading } = useAuth();
@@ -59,8 +60,12 @@ const AppRoutes: React.FC = () => {
           <Route path="orders" element={<OrderListPage />} />
           <Route path="orders/:id" element={<OrderDetailPage />} />
           <Route path="customers" element={<CustomerListPage />} />
-          <Route path='expenses' element={<ExpensePage/>}/>
-
+          <Route path='expenses' element={<ExpensePage/>}/><Route 
+          path="quotations" element={<QuotationListPage />} />
+          <Route path="quotations/new" element={<QuotationFormPage />} />
+          <Route path="quotations/edit/:id" element={<QuotationFormPage />} />
+          <Route path="quotations/:id" element={<QuotationFormPage />} />
+          
           {/* Role Protected Routes */}
           <Route element={<ProtectedRoute allowedRoles={[Role.ADMIN, Role.MANAGER]} />}>
             <Route path="admin/products" element={<ProductListPage />} />
