@@ -1,0 +1,99 @@
+/* Hidden on screen, visible only for printing */
+.quotation-print-container {
+    display: none;
+}
+
+@media print {
+    /* On print, hide all other app elements */
+     html, body {
+        height: 100vh !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: hidden;
+    }
+    /* Make the quotation and everything inside it visible */
+    .quotation-print-container, .quotation-print-container * {
+        visibility: visible;
+    }
+    /* Position it at the top of the print page */
+    .quotation-print-container {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+    }
+
+    /* A4-style layout for the quotation itself */
+    .quotation-page {
+        width: 210mm; /* A4 width */
+        min-height: 297mm; /* A4 height */
+        padding: 20mm;
+        margin: 0 auto;
+        background: white;
+        font-family: Arial, sans-serif;
+        font-size: 12pt;
+        box-sizing: border-box;
+    }
+
+    .quotation-page h1 { font-size: 24pt; margin-bottom: 20px; color: #333; }
+    .quotation-page h2 { font-size: 14pt; margin-top: 20px; border-bottom: 2px solid #eee; padding-bottom: 5px; }
+
+    .quote-header {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 40px;
+    }
+    .company-details, .quote-details {
+        width: 48%;
+    }
+    .company-details img {
+        max-width: 200px;
+        margin-bottom: 10px;
+    }
+    .quote-details p { margin: 0 0 5px 0; }
+    .quote-details strong { display: inline-block; width: 120px; }
+
+    .customer-details {
+        margin-top: 30px;
+        padding: 15px;
+        border: 1px solid #eee;
+        border-radius: 5px;
+    }
+    .customer-details p { margin: 0 0 5px 0; }
+
+    .items-table {
+        width: 100%;
+        margin-top: 20px;
+        border-collapse: collapse;
+    }
+    .items-table th, .items-table td {
+        border: 1px solid #ddd;
+        padding: 8px;
+        text-align: left;
+    }
+    .items-table th { background-color: #f9f9f9; }
+    .items-table .col-qty { text-align: center; }
+    .items-table .col-price, .items-table .col-total { text-align: right; }
+
+    .summary-section {
+        display: flex;
+        justify-content: flex-end;
+        margin-top: 20px;
+    }
+    .summary-table {
+        width: 50%;
+    }
+    .summary-table td {
+        padding: 5px;
+    }
+    .summary-table .summary-label { text-align: right; font-weight: bold; }
+    .summary-table .summary-value { text-align: right; }
+    .summary-table .grand-total td { border-top: 2px solid #333; font-size: 14pt; padding-top: 10px; }
+
+    .quote-footer {
+        margin-top: 40px;
+        text-align: center;
+        font-size: 10pt;
+        color: #777;
+    }
+}

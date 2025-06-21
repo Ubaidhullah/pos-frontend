@@ -31,6 +31,7 @@ import AuditLogPage from './features/audit-logs/AuditLogPage';
 import OrderDetailPage from './features/orders/OrderDetailPage';
 import QuotationListPage from './features/quotations/QuotationListPage';
 import QuotationFormPage from './features/quotations/QuotationFormPage';
+import QuotationDetailPage from './features/quotations/QuotationDetailPage';
 
 const AppRoutes: React.FC = () => {
   const { isAuthenticated, isLoading } = useAuth();
@@ -64,7 +65,7 @@ const AppRoutes: React.FC = () => {
           path="quotations" element={<QuotationListPage />} />
           <Route path="quotations/new" element={<QuotationFormPage />} />
           <Route path="quotations/edit/:id" element={<QuotationFormPage />} />
-          <Route path="quotations/:id" element={<QuotationFormPage />} />
+          <Route path="quotations/:id" element={<QuotationDetailPage />} />
           
           {/* Role Protected Routes */}
           <Route element={<ProtectedRoute allowedRoles={[Role.ADMIN, Role.MANAGER]} />}>

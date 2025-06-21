@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useQuery, useMutation } from '@apollo/client';
 import { Table, Button, Space, Tag, message, Tooltip, Typography, Select, Card, Row, Col } from 'antd';
-import { PlusOutlined, EyeOutlined, CheckCircleOutlined, SyncOutlined } from '@ant-design/icons';
+import { PlusOutlined, EyeOutlined, CheckCircleOutlined, SyncOutlined, EditOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useNavigate, Link } from 'react-router-dom';
 import { GET_QUOTATIONS } from '../../apollo/queries/quotationQueries';
@@ -68,7 +68,13 @@ const QuotationListPage: React.FC = () => {
     };
 
     const columns = [
-        { title: 'Quote No.', dataIndex: 'quoteNumber', key: 'quoteNumber', render: (text: string | number | bigint | boolean | React.ReactElement<unknown, string | React.JSXElementConstructor<any>> | Iterable<React.ReactNode> | React.ReactPortal | Promise<string | number | bigint | boolean | React.ReactPortal | React.ReactElement<unknown, string | React.JSXElementConstructor<any>> | Iterable<React.ReactNode> | null | undefined> | null | undefined, record: { id: any; }) => <Link to={`/quotations/${record.id}`}>{text}</Link> },
+        { 
+            title: 'Quote No.',
+            dataIndex: 'quoteNumber',
+            key: 'quoteNumber',
+            // 👇 FIX: This 'render' function turns the text into a clickable link
+            render: (text: string, record: QuotationData) => <Link to={`/quotations/${record.id}`}>{text}</Link> 
+        },
         { title: 'Customer', dataIndex: ['customer', 'name'], key: 'customer', render: (name: any) => name || 'N/A' },
         { title: 'Valid Until', dataIndex: 'validUntil', key: 'validUntil', render: (date: string | number | Date | dayjs.Dayjs | null | undefined) => dayjs(date).format('YYYY-MM-DD') },
         { title: 'Status', dataIndex: 'status', key: 'status', render: (status: QuotationStatus) => <Tag color={statusColors[status]}>{status}</Tag> },
@@ -78,6 +84,7 @@ const QuotationListPage: React.FC = () => {
             render: (_: any, record: QuotationData) => (
                 <Space>
                     <Tooltip title="View Details"><Button size="small" icon={<EyeOutlined />} onClick={() => navigate(`/quotations/${record.id}`)} /></Tooltip>
+                    <Tooltip title="edit"><Button size="small" type="primary"icon={<EditOutlined />} onClick={() => navigate(`/quotations/${record.id}/edit`)}/></Tooltip>
                     {record.status === 'DRAFT' && <Button size="small" onClick={() => handleUpdateStatus(record.id, QuotationStatus.SENT)}>Mark as Sent</Button>}
                     {record.status === 'SENT' && <Button size="small" onClick={() => handleUpdateStatus(record.id, QuotationStatus.ACCEPTED)}>Mark as Accepted</Button>}
                     {record.status === 'ACCEPTED' && <Button size="small" type="primary" icon={<SyncOutlined />} onClick={() => handleConvertToOrder(record.id)} loading={createOrderLoading}>Convert to Order</Button>}
