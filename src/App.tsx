@@ -32,6 +32,7 @@ import OrderDetailPage from './features/orders/OrderDetailPage';
 import QuotationListPage from './features/quotations/QuotationListPage';
 import QuotationFormPage from './features/quotations/QuotationFormPage';
 import QuotationDetailPage from './features/quotations/QuotationDetailPage';
+import ReportingCenterPage from './features/reporting/ReportingCenterPage';
 
 const AppRoutes: React.FC = () => {
   const { isAuthenticated, isLoading } = useAuth();
@@ -78,6 +79,7 @@ const AppRoutes: React.FC = () => {
             <Route path="admin/purchase-orders/edit/:id" element={<PurchaseOrderFormPage />} />
             <Route path="admin/purchase-orders/:id" element={<PurchaseOrderDetailPage />} />
             <Route path="returns" element={<ReturnsPage />} />
+            <Route path="reports" element={<ReportingCenterPage />} />
     {/* <Route path="admin/purchase-orders/:id" element={<PurchaseOrderDetailPage />} /> // For detail view later */}
           </Route>
 
@@ -88,7 +90,7 @@ const AppRoutes: React.FC = () => {
             <Route path="admin/audit-log" element={<AuditLogPage />} />
           </Route>
 
-          <Route path="reports" element={<ReportingPage />} />
+          <Route path="analytics" element={<ReportingPage />} />
 
           {/* Catch-all */}
           <Route path="*" element={<Navigate to="/" replace />} />

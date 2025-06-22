@@ -23,6 +23,8 @@ import {
   SettingOutlined,
   FileSearchOutlined,
   FileTextOutlined,
+  LineChartOutlined,
+  ContainerOutlined,
 } from '@ant-design/icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { Role } from '../../common/enums/role.enum';
@@ -80,9 +82,10 @@ const MainLayout: React.FC = () => {
       navItems.push(getItem(<Link to="/quotations">Quotations</Link>, '/quotations', <FileTextOutlined />));
       navItems.push({ key: '/customers', icon: <SolutionOutlined />, label: <Link to="/customers">Customers</Link> });
       navItems.push({ key: '/orders', icon: <ShoppingOutlined />, label: <Link to="/orders">Orders</Link> });
-      navItems.push({ key: '/reports', icon: <PieChartOutlined />, label: <Link to="/reports">Reports</Link> });
       navItems.push({ key: '/expenses', icon: <ShoppingOutlined />, label: <Link to="/expenses">Expenses</Link> });
       navItems.push({ key: '/returns', icon: <UndoOutlined />, label: <Link to="/returns">Process Return</Link> });
+      navItems.push(getItem(<Link to="/reports">Reports</Link>, '/reports', <ContainerOutlined />));
+      navItems.push({ key: '/analytics', icon: <LineChartOutlined />, label: <Link to="/analytics">Analytics</Link> });
     }
 
     if (hasRole([Role.ADMIN, Role.MANAGER])) {

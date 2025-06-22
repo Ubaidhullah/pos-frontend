@@ -43,3 +43,42 @@ export const GET_TOP_SELLING_PRODUCTS = gql`
     }
   }
 `;
+
+export const GET_SALES_REPORT = gql`
+  query GetSalesReport($filters: ReportFilterInput, $groupBy: String!) {
+    salesReport(filters: $filters, groupBy: $groupBy) 
+  }
+`;
+
+
+export const GET_ORDER_BASED_REPORT = gql`
+  query GetOrderBasedReport($filters: ReportFilterInput, $reportType: String!) {
+    orderBasedReport(filters: $filters, reportType: $reportType) { 
+      id
+      billNumber
+      status
+      grandTotal
+      amountPaid
+      createdAt
+      customer {
+        name
+      }
+    }
+  }
+`;
+
+export const GET_OUTSTANDING_BILLS_REPORT = gql`
+  query GetOutstandingBillsReport($filters: ReportFilterInput) {
+    outstandingBillsReport(filters: $filters) {
+      id
+      billNumber
+      status
+      grandTotal
+      amountPaid
+      createdAt
+      customer {
+        name
+      }
+    }
+  }
+`;
