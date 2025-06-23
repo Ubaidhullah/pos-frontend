@@ -45,3 +45,12 @@ export const ADD_PAYMENT_TO_ORDER_MUTATION = gql`
     }
   }
 `;
+
+export const VOID_ORDER = gql`
+  mutation VoidOrder($orderId: ID!) {
+    voidOrder(orderId: $orderId) {
+      id
+      status # Get the new status to update the UI
+    }
+  }
+`;

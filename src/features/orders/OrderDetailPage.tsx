@@ -1,6 +1,6 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { useQuery } from '@apollo/client';
+import { useMutation, useQuery } from '@apollo/client';
 import {
   Spin,
   Alert,
@@ -15,24 +15,32 @@ import {
   Divider,
   Space,
   Empty,
+  Modal
 } from 'antd';
-import { ArrowLeftOutlined, PrinterOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, ExclamationCircleOutlined, PrinterOutlined, StopOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useReactToPrint } from 'react-to-print';
 
 import { GET_ORDER_DETAILS_BY_ID } from '../../apollo/queries/orderQueries';
-// import { GQLOrderStatus } from '../../common/enums/order-status.enum';
+import { OrderStatus } from '../../common/enums/order-status.enum';
+import { VOID_ORDER } from '../../apollo/mutations/orderMutations'; 
+import { useAuth } from '../../contexts/AuthContext';
 import Receipt, { type OrderDataForReceipt } from '../pos/Receipt';
 import { useAntdNotice } from '../../contexts/AntdNoticeContext';
+import { Role } from '../../common/enums/role.enum';
 
 const { Title, Text, Paragraph } = Typography;
+const { confirm } = Modal;
 
 const OrderDetailPage: React.FC = () => {
   const { id: orderId } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { hasRole } = useAuth();
   const { messageApi } = useAntdNotice();
+  const [isVoidModalVisible, setIsVoidModalVisible] = useState(false);
 
-  const { data, loading, error } = useQuery<{ order: OrderDataForReceipt }>(
+
+  const { data, loading, error, refetch } = useQuery<{ order: OrderDataForReceipt }>(
     GET_ORDER_DETAILS_BY_ID,
     {
       variables: { id: orderId },
@@ -42,6 +50,23 @@ const OrderDetailPage: React.FC = () => {
       }
     }
   );
+
+  const [voidOrder, { loading: voidLoading }] = useMutation(VOID_ORDER, {
+      onCompleted: () => {
+          messageApi.success('Order has been successfully voided.');
+          refetch(); // Refetch the order details to show the new "VOIDED" status
+      },
+      onError: (err) => {
+          messageApi.error(`Failed to void order: ${err.message}`);
+      }
+  });
+
+ const showVoidConfirm = () => {
+  setIsVoidModalVisible(true);
+};
+
+
+
 
   const receiptRef = useRef<HTMLDivElement>(null);
       const handlePrint = useReactToPrint({
@@ -53,6 +78,8 @@ const OrderDetailPage: React.FC = () => {
   if (loading) {
     return <div style={{ textAlign: 'center', padding: '50px' }}><Spin size="large" tip="Loading Order Details..."/></div>;
   }
+
+  
   
   // Use a more user-friendly error display that doesn't halt rendering
   if (error) {
@@ -88,7 +115,7 @@ const OrderDetailPage: React.FC = () => {
         </div>
     );
   }
-
+  const canBeVoided = hasRole([Role.ADMIN, Role.MANAGER]) && order.status === OrderStatus.COMPLETED;
 
   const statusColors: Record<string, string> = { 
     COMPLETED: 'green', RETURNED: 'red', PARTIALLY_RETURNED: 'orange', CANCELLED: 'gray' 
@@ -122,9 +149,22 @@ const OrderDetailPage: React.FC = () => {
               </Space>
             </Col>
             <Col>
+            <Space wrap>
               <Button type="primary" icon={<PrinterOutlined />} onClick={handlePrint}>
                 Print Receipt
               </Button>
+               {canBeVoided && (
+                <Button 
+                  danger 
+                  type="primary" 
+                  icon={<StopOutlined />} 
+                  onClick={showVoidConfirm}
+                  loading={voidLoading}
+                >
+                  Void Sale
+                </Button>
+              )}
+              </Space>
             </Col>
           </Row>
 
@@ -180,6 +220,23 @@ const OrderDetailPage: React.FC = () => {
           
         </Space>
       </div>
+
+      <Modal
+        title="Confirm Void Sale"
+        open={isVoidModalVisible}
+        onOk={() => {
+          voidOrder({ variables: { orderId } });
+          setIsVoidModalVisible(false);
+        }}
+        onCancel={() => setIsVoidModalVisible(false)}
+        okText="Yes, Void Sale"
+        cancelText="No"
+        okButtonProps={{ danger: true, loading: voidLoading }}
+      >
+        <ExclamationCircleOutlined style={{ fontSize: 20, color: '#faad14', marginRight: 8 }} />
+        This action is irreversible. All items will be returned to stock.
+      </Modal>
+
 
       {/* --- Hidden Component for Printing --- */}
       <div className="receipt-container-hidden">
