@@ -2,10 +2,11 @@
 import { ApolloClient, InMemoryCache, ApolloProvider, gql, useQuery } from '@apollo/client';
 
 const client = new ApolloClient({
-  uri: 'http://localhost:3001/graphql', // ✅ backend port (not 3000)
+  uri: import.meta.env.VITE_GRAPHQL_ENDPOINT || 'http://localhost:3001/graphql',
   cache: new InMemoryCache(),
-  credentials: 'include', // ✅ only if using cookies or auth headers
+  credentials: 'include',
 });
+
 
 const HELLO_QUERY = gql`
   query SayHello {
