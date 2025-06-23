@@ -82,3 +82,16 @@ export const GET_OUTSTANDING_BILLS_REPORT = gql`
     }
   }
 `;
+
+export const GET_INVENTORY_CHANGES_REPORT = gql`
+  query GetInventoryChangesReport($filters: ReportFilterInput!) {
+    inventoryChangesReport(filters: $filters) {
+      product {
+        id
+        name
+        sku
+      }
+      netChange
+    }
+  }
+`;
