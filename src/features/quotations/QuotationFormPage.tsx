@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useLazyQuery, useMutation } from '@apollo/client';
 import {
@@ -43,6 +43,13 @@ interface QuotationFormValues {
   orderDiscountValue?: number;
 }
 
+// 1. Define a more complete interface for the settings data
+interface SettingsInfo {
+  pricesEnteredWithTax: boolean;
+  displayCurrency?: string;
+  baseCurrency?: string;
+}
+
 const QuotationFormPage: React.FC = () => {
   const { id: quoteId } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -53,7 +60,8 @@ const QuotationFormPage: React.FC = () => {
   const [totals, setTotals] = useState({ grandTotal: 0, subTotal: 0, totalDiscount: 0, totalTax: 0 });
 
   // --- Data Fetching ---
-  const { data: settingsData } = useQuery<{ settings: { pricesEnteredWithTax: boolean } }>(GET_SETTINGS);
+  // 2. Update the useQuery hook to expect the new currency fields
+  const { data: settingsData } = useQuery<{ settings: SettingsInfo }>(GET_SETTINGS);
   const { data: customersData, loading: customersLoading } = useQuery<{ customers: CustomerInfo[] }>(GET_CUSTOMERS);
   const { data: productsData, loading: productsLoading } = useQuery<{ products: ProductInfo[] }>(GET_PRODUCTS);
   const [fetchQuote, { data: quoteData, loading: quoteLoading, error: quoteError }] = useLazyQuery(GET_QUOTATION_BY_ID);
@@ -61,6 +69,11 @@ const QuotationFormPage: React.FC = () => {
   // --- Mutations ---
   const [createQuote, { loading: createLoading }] = useMutation(CREATE_QUOTATION);
   const [updateQuote, { loading: updateLoading }] = useMutation(UPDATE_QUOTATION);
+
+  // 3. Define the currencySymbol with fallbacks, memoized for efficiency
+  const currencySymbol = useMemo(() => {
+    return settingsData?.settings.displayCurrency || settingsData?.settings.baseCurrency || '$';
+  }, [settingsData]);
 
   const pricesEnteredWithTax = settingsData?.settings.pricesEnteredWithTax || false;
 
@@ -90,6 +103,7 @@ const QuotationFormPage: React.FC = () => {
     setTotals({ grandTotal, subTotal: itemsTotal, totalDiscount: totalLineItemDiscount + orderDiscountAmount, totalTax: totalTaxAmount });
   }, [pricesEnteredWithTax]);
 
+  // ... (the rest of your hooks and handlers remain the same)
   const handleFormValuesChange = (_: any, allValues: QuotationFormValues) => {
     calculateTotals(allValues.items, { type: allValues.orderDiscountType, value: allValues.orderDiscountValue });
   };
@@ -137,7 +151,7 @@ const QuotationFormPage: React.FC = () => {
 
     const submissionItems = (values.items || [])
       .filter(item => item && item.productId && (item.quantity || 0) > 0)
-      .map(({ taxRate, ...item }) => ({ // Remove client-side taxRate before submission
+      .map(({ taxRate, ...item }) => ({
         productId: item.productId!,
         quantity: Number(item.quantity),
         unitPrice: Number(item.unitPrice),
@@ -209,8 +223,10 @@ const QuotationFormPage: React.FC = () => {
                     <Row key={key} gutter={16} align="bottom" style={{marginBottom: 8, paddingBottom: 8, borderBottom: '1px solid #f0f0f0'}}>
                       <Col flex="auto"><Form.Item {...restField} name={[name, 'productId']} label={index === 0 ? "Product" : ""} rules={[{ required: true }]}><Select showSearch placeholder="Select product" loading={productsLoading} disabled={formIsDisabled} onChange={(value) => handleProductSelect(value, name)} filterOption={(input, option) => (option?.children as any)?.toLowerCase().includes(input.toLowerCase())}>{productsData?.products.map(p => <Option key={p.id} value={p.id}>{p.name} (SKU: {p.sku || 'N/A'})</Option>)}</Select></Form.Item></Col>
                       <Col xs={12} sm={4}><Form.Item {...restField} name={[name, 'quantity']} label={index === 0 ? "Qty" : ""}><InputNumber style={{ width: '100%' }} min={1} disabled={formIsDisabled} /></Form.Item></Col>
-                      <Col xs={12} sm={4}><Form.Item {...restField} name={[name, 'unitPrice']} label={index === 0 ? "Unit Price" : ""}><InputNumber addonBefore="$" style={{ width: '100%' }} min={0} precision={2} disabled={formIsDisabled} /></Form.Item></Col>
-                      <Col flex="80px" style={{textAlign: 'right'}}><Form.Item label={index === 0 ? "Subtotal" : ""}><Text strong>${((form.getFieldValue(['items', name, 'quantity']) || 0) * (form.getFieldValue(['items', name, 'unitPrice']) || 0)).toFixed(2)}</Text></Form.Item></Col>
+                      {/* 4. Use the dynamic currencySymbol in the InputNumber addonBefore prop */}
+                      <Col xs={12} sm={4}><Form.Item {...restField} name={[name, 'unitPrice']} label={index === 0 ? "Unit Price" : ""}><InputNumber addonBefore={currencySymbol} style={{ width: '100%' }} min={0} precision={2} disabled={formIsDisabled} /></Form.Item></Col>
+                      {/* 5. And here for the line item subtotal */}
+                      <Col flex="80px" style={{textAlign: 'right'}}><Form.Item label={index === 0 ? "Subtotal" : ""}><Text strong>{currencySymbol}{((form.getFieldValue(['items', name, 'quantity']) || 0) * (form.getFieldValue(['items', name, 'unitPrice']) || 0)).toFixed(2)}</Text></Form.Item></Col>
                       <Col flex="32px"><Button type="text" danger onClick={() => remove(name)} icon={<DeleteOutlined />} disabled={formIsDisabled} /></Col>
                     </Row>
                 ))}
@@ -220,13 +236,14 @@ const QuotationFormPage: React.FC = () => {
           </Form.List>
         </Card>
         
+        {/* 6. Use the dynamic currencySymbol in the final totals section */}
         <Row justify="end" style={{ marginTop: 24, paddingRight: 16 }}>
             <Col>
                 <Space direction="vertical" align="end">
-                    <Text>Items Subtotal: ${totals.subTotal.toFixed(2)}</Text>
-                    <Text type="success">Discount: -${totals.totalDiscount.toFixed(2)}</Text>
-                    <Text>Tax: ${totals.totalTax.toFixed(2)}</Text>
-                    <Title level={4}>Grand Total: ${totals.grandTotal.toFixed(2)}</Title>
+                    <Text>Items Subtotal: {currencySymbol}{totals.subTotal.toFixed(2)}</Text>
+                    <Text type="success">Discount: -{currencySymbol}{totals.totalDiscount.toFixed(2)}</Text>
+                    <Text>Tax: {currencySymbol}{totals.totalTax.toFixed(2)}</Text>
+                    <Title level={4}>Grand Total: {currencySymbol}{totals.grandTotal.toFixed(2)}</Title>
                 </Space>
             </Col>
         </Row>

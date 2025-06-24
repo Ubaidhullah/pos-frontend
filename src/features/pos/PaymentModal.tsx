@@ -19,9 +19,10 @@ interface PaymentModalProps {
   onSubmit: (payments: PaymentInput[]) => void;
   isProcessing: boolean;
   isLayaway?: boolean;
+  currencySymbol: string; 
 }
 
-const PaymentModal: React.FC<PaymentModalProps> = ({ open, onClose, totalAmountDue, onSubmit, isProcessing, isLayaway }) => {
+const PaymentModal: React.FC<PaymentModalProps> = ({ open, onClose, totalAmountDue, onSubmit, isProcessing, isLayaway, currencySymbol }) => {
   const [form] = Form.useForm();
   const [totalPaid, setTotalPaid] = useState(0);
   const { messageApi } = useAntdNotice();
@@ -80,7 +81,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ open, onClose, totalAmountD
             title="Total Amount Due"
             value={totalAmountDue}
             precision={2}
-            prefix="$"
+            prefix={currencySymbol}
             valueStyle={{ fontSize: '2em' }}
           />
         </Col>
@@ -89,7 +90,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ open, onClose, totalAmountD
             title={changeDue >= 0 ? "Change Due" : "Amount Remaining"}
             value={Math.abs(changeDue)}
             precision={2}
-            prefix="$"
+            prefix={currencySymbol}
             valueStyle={{ color: changeDue >= 0 ? '#3f8600' : '#cf1322', fontSize: '2em' }}
           />
         </Col>
@@ -120,7 +121,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ open, onClose, totalAmountD
                     name={[name, 'amount']}
                     rules={[{ required: true, message: 'Amount is required' }, { type: 'number', min: 0.01 }]}
                   >
-                    <InputNumber prefix="$" precision={2} style={{ width: 150 }} placeholder="Amount" />
+                    <InputNumber prefix={currencySymbol} precision={2} style={{ width: 150 }} placeholder="Amount" />
                   </Form.Item>
                   <DeleteOutlined onClick={() => remove(name)} style={{color: 'red', cursor: 'pointer'}}/>
                 </Space>

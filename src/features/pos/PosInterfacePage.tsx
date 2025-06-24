@@ -44,6 +44,8 @@ interface SettingsData {
   pricesEnteredWithTax: boolean;
   allowPriceEditAtSale: boolean;
   allowNegativeStockSale: boolean;
+  displayCurrency?: string;
+  baseCurrency?: string;
 }
 
 // --- Interfaces ---
@@ -79,11 +81,12 @@ interface DiscountFormValues {
   value: number;
 }
 
-const PriceEditPopoverContent: React.FC<{ onApply: (newPrice: number) => void; initialValue: number }> = ({ onApply, initialValue }) => {
+// --- Helper Component for Price Editing ---
+const PriceEditPopoverContent: React.FC<{ onApply: (newPrice: number) => void; initialValue: number; currencySymbol: string }> = ({ onApply, initialValue, currencySymbol }) => {
   const [newPrice, setNewPrice] = useState(initialValue);
   return (
     <Space>
-      <InputNumber value={newPrice} onChange={(val) => setNewPrice(val!)} min={0} precision={2} prefix="$" />
+      <InputNumber value={newPrice} onChange={(val) => setNewPrice(val!)} min={0} precision={2} prefix={currencySymbol} />
       <Button type="primary" onClick={() => onApply(newPrice)}>Set</Button>
     </Space>
   );
@@ -91,13 +94,15 @@ const PriceEditPopoverContent: React.FC<{ onApply: (newPrice: number) => void; i
 // ... (Discou
 
 // --- Reusable Discount Popover ---
-const DiscountPopoverContent: React.FC<{ onApply: (values: DiscountFormValues) => void; initialValues: DiscountFormValues }> = ({ onApply, initialValues }) => {
+// --- Reusable Discount Popover ---
+const DiscountPopoverContent: React.FC<{ onApply: (values: DiscountFormValues) => void; initialValues: DiscountFormValues; currencySymbol: string; }> = ({ onApply, initialValues, currencySymbol }) => {
     const [form] = Form.useForm<DiscountFormValues>();
+    const type = Form.useWatch('type', form);
     const handleApplyClick = () => { form.validateFields().then(values => onApply(values)); };
     return (
         <Form form={form} layout="vertical" initialValues={initialValues} size="small">
-            <Form.Item name="type" label="Discount Type"><Radio.Group><Radio.Button value={DiscountType.PERCENTAGE}>%</Radio.Button><Radio.Button value={DiscountType.FIXED_AMOUNT}>$</Radio.Button></Radio.Group></Form.Item>
-            <Form.Item name="value" label="Value" rules={[{ required: true }]}><InputNumber min={0} style={{width: '100%'}} /></Form.Item>
+            <Form.Item name="type" label="Discount Type"><Radio.Group><Radio.Button value={DiscountType.PERCENTAGE}>%</Radio.Button><Radio.Button value={DiscountType.FIXED_AMOUNT}>{currencySymbol}</Radio.Button></Radio.Group></Form.Item>
+            <Form.Item name="value" label="Value" rules={[{ required: true }]}><InputNumber min={0} style={{width: '100%'}} prefix={type === DiscountType.FIXED_AMOUNT ? currencySymbol : undefined} /></Form.Item>
             <Button type="primary" onClick={handleApplyClick} block>Apply</Button>
         </Form>
     );
@@ -126,6 +131,16 @@ const PosInterfacePage: React.FC = () => {
       onAfterPrint: () => receiptRef.current?.focus(),
     });
 
+
+    const currencySymbol = useMemo(() => {
+    if (settingsData?.settings.displayCurrency) {
+        return settingsData.settings.displayCurrency;
+    }
+    if (settingsData?.settings.baseCurrency) {
+        return settingsData.settings.baseCurrency;
+    }
+    return '$'; // Fallback to $ if neither is set
+}, [settingsData]);
 
   // --- GraphQL Operations ---
   // const { data: settingsData } = useQuery<{ settings: { pricesEnteredWithTax: boolean } }>(GET_SETTINGS);
@@ -326,7 +341,7 @@ const handlePriceEdit = (productId: string, newPrice: number) => {
                   >
                     <Card.Meta title={<Tooltip title={product.name}>{product.name}</Tooltip>} description={
                       <>
-                        <Text strong>${product.price.toFixed(2)}</Text>
+                        <Text strong>{currencySymbol}{product.price.toFixed(2)}</Text>
                         <Text type={(product.inventoryItem?.quantity ?? 0) > 10 ? 'success' : 'warning'} style={{display: 'block'}}>Stock: {product.inventoryItem?.quantity ?? 'N/A'}</Text>
                       </>
                     }/>
@@ -385,7 +400,7 @@ const handlePriceEdit = (productId: string, newPrice: number) => {
                         actions={[
                           allowPriceEditAtSale && (
                             <Popover
-                              content={<PriceEditPopoverContent onApply={(newPrice) => handlePriceEdit(item.productId, newPrice)} initialValue={item.priceAtSale} />}
+                              content={<PriceEditPopoverContent onApply={(newPrice) => handlePriceEdit(item.productId, newPrice)} initialValue={item.priceAtSale} currencySymbol={currencySymbol} />}
                               title="Set Custom Price"
                               trigger="click"
                               placement="left"
@@ -398,6 +413,7 @@ const handlePriceEdit = (productId: string, newPrice: number) => {
                               <DiscountPopoverContent
                                 onApply={(values) => applyLineItemDiscount(item.productId, values)}
                                 initialValues={{ type: item.discountType, value: item.discountValue }}
+                                currencySymbol={currencySymbol}
                               />
                             }
                             title="Apply Item Discount"
@@ -419,28 +435,28 @@ const handlePriceEdit = (productId: string, newPrice: number) => {
                         ]}
                       >
                        <List.Item.Meta
-                            title={item.name}
-                            description={
-                              <Space wrap>
-                                {item.priceAtSale !== item.price ? (
-                                  <>
-                                    <Text delete>${item.price.toFixed(2)}</Text>
-                                    <Text type="success" style={{ marginLeft: 8 }}>
-                                      ${item.priceAtSale.toFixed(2)}
-                                    </Text>
-                                  </>
-                                ) : item.discountType !== DiscountType.NONE ? (
-                                  <Text delete>${item.price.toFixed(2)}</Text>
-                                ) : (
-                                  `$${item.price.toFixed(2)} each`
-                                )}
+                          title={item.name}
+                          description={
+                            <Space wrap>
+                              {item.priceAtSale !== item.price ? (
+                                <>
+                                  <Text delete>{currencySymbol}{item.price.toFixed(2)}</Text>
+                                  <Text type="success" style={{ marginLeft: 8 }}>
+                                    {currencySymbol}{item.priceAtSale.toFixed(2)}
+                                  </Text>
+                                </>
+                              ) : item.discountType !== DiscountType.NONE ? (
+                                <Text delete>{currencySymbol}{item.price.toFixed(2)}</Text>
+                              ) : (
+                                `${currencySymbol}${item.price.toFixed(2)} each`
+                              )}
 
-                                {item.taxRate && item.taxRate > 0 && (
-                                  <Tag>{item.taxRate}% tax</Tag>
-                                )}
-                              </Space>
-                            }
-                          />
+                              {item.taxRate && item.taxRate > 0 && (
+                                <Tag>{item.taxRate}% tax</Tag>
+                              )}
+                            </Space>
+                          }
+                        />
                         <Space direction="vertical" align="end" size="small">
                           <InputNumber
                             min={1}
@@ -451,7 +467,7 @@ const handlePriceEdit = (productId: string, newPrice: number) => {
                             style={{ width: '70px' }}
                           />
                           {item.discountType !== DiscountType.NONE && (
-                            <Tag color="green">Disc: -${lineDiscountAmount.toFixed(2)}</Tag>
+                            <Tag color="green">Disc: -{currencySymbol}{lineDiscountAmount.toFixed(2)}</Tag>
                           )}
                           <Text strong>${finalLineTotal.toFixed(2)}</Text>
                         </Space>
@@ -464,11 +480,11 @@ const handlePriceEdit = (productId: string, newPrice: number) => {
             <Divider />
             
             <div style={{ textAlign: 'right' }}>
-              <Row justify="space-between"><Col><Text>Subtotal:</Text></Col><Col><Text>${itemsTotal.toFixed(2)}</Text></Col></Row>
-              <Row justify="space-between"><Col><Space><Text type="success">Discount:</Text><Popover content={<DiscountPopoverContent onApply={applyCartDiscount} initialValues={cartDiscount} />} title="Apply Cart Discount" trigger="click"><Button type="link" icon={<TagOutlined />} size="small" style={{ padding: 0 }}/></Popover></Space></Col><Col><Text type="success">-${totalDiscount.toFixed(2)}</Text></Col></Row>
-              <Row justify="space-between"><Col><Text>Tax:</Text></Col><Col><Text>${totalTax.toFixed(2)}</Text></Col></Row>
+              <Row justify="space-between"><Col><Text>Subtotal:</Text></Col><Col><Text>{currencySymbol}{itemsTotal.toFixed(2)}</Text></Col></Row>
+              <Row justify="space-between"><Col><Space><Text type="success">Discount:</Text><Popover content={<DiscountPopoverContent onApply={applyCartDiscount} initialValues={cartDiscount} currencySymbol={currencySymbol} />} title="Apply Cart Discount" trigger="click"><Button type="link" icon={<TagOutlined />} size="small" style={{ padding: 0 }}/></Popover></Space></Col><Col><Text type="success">-{currencySymbol}{totalDiscount.toFixed(2)}</Text></Col></Row>
+              <Row justify="space-between"><Col><Text>Tax:</Text></Col><Col><Text>{currencySymbol}{totalTax.toFixed(2)}</Text></Col></Row>
               <Divider style={{margin: '8px 0'}}/>
-              <Title level={4} style={{margin: 0}}>Total: ${grandTotal.toFixed(2)}</Title>
+              <Title level={4} style={{margin: 0}}>Total: {currencySymbol}{grandTotal.toFixed(2)}</Title>              
                 <Space>
                     <Switch checked={isLayawayMode} onChange={setIsLayawayMode} />
                     <Text strong>Save as Layaway Order</Text>
@@ -495,7 +511,7 @@ const handlePriceEdit = (productId: string, newPrice: number) => {
         </Col>
       </Row>
 
-      <PaymentModal open={isPaymentModalOpen} onClose={() => setIsPaymentModalOpen(false)} totalAmountDue={grandTotal} onSubmit={handleProcessPayment} isProcessing={orderLoading} isLayaway={isLayawayMode} />
+      <PaymentModal open={isPaymentModalOpen} onClose={() => setIsPaymentModalOpen(false)} totalAmountDue={grandTotal} onSubmit={handleProcessPayment} isProcessing={orderLoading} isLayaway={isLayawayMode} currencySymbol={currencySymbol}  />
       
       <div className="receipt-container-hidden">
         <div ref={receiptRef} tabIndex={-1}>

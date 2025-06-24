@@ -1,17 +1,21 @@
 import React, { useEffect, useState } from 'react';
 import { Modal, Form, Button, Space, Statistic, Divider, message, InputNumber, Select } from 'antd';
 import { DeleteOutlined, PlusOutlined } from '@ant-design/icons';
-import { useMutation } from '@apollo/client';
-import type { PaymentInput } from './PaymentModal';
+import type { PaymentInput } from './PaymentModal'; // Assuming this is the correct path
 import { PaymentMethod } from '../../common/enums/payment-method.enum';
 
+// --- Interface for the component's props ---
+interface PaymentFormSectionProps {
+  form: any;
+  onFinish: (values: any) => void;
+  totalAmountDue: number;
+  currencySymbol: string; // Add currencySymbol to the props
+}
 
-
-const PaymentFormSection: React.FC<{form: any, onFinish: (values: any) => void, totalAmountDue: number}> = ({form, onFinish, totalAmountDue}) => {
+const PaymentFormSection: React.FC<PaymentFormSectionProps> = ({ form, onFinish, totalAmountDue, currencySymbol }) => {
     const [totalPaid, setTotalPaid] = useState(0);
 
     useEffect(() => {
-        // Set an initial payment line for the full remaining amount
         const initialAmount = totalAmountDue > 0 ? parseFloat(totalAmountDue.toFixed(2)) : 0;
         form.setFieldsValue({ payments: [{ method: 'CASH', amount: initialAmount }] });
         setTotalPaid(initialAmount);
@@ -48,7 +52,8 @@ const PaymentFormSection: React.FC<{form: any, onFinish: (values: any) => void, 
                                   name={[name, 'amount']}
                                   rules={[{ required: true, message: 'Amount is required'}]}
                                 >
-                                  <InputNumber prefix="$" precision={2} style={{ width: 180 }} placeholder="Amount" />
+                                  {/* Replace the hardcoded prefix with the currencySymbol prop */}
+                                  <InputNumber prefix={currencySymbol} precision={2} style={{ width: 180 }} placeholder="Amount" />
                                 </Form.Item>
                                 <DeleteOutlined
                                   onClick={() => remove(name)}

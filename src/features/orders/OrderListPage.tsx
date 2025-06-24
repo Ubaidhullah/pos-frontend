@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useQuery, useLazyQuery } from '@apollo/client';
 import { useNavigate } from 'react-router-dom';
 import { Table, Tag, Button, DatePicker, Select, Space, Modal, List, Typography, message, Tooltip } from 'antd';
@@ -10,6 +10,8 @@ import { useAuth } from '../../contexts/AuthContext';
 import AddPaymentModal from '../pos/AddPaymentModal';
 import { Role } from '../../common/enums/role.enum';
 import { OrderStatus } from '../../common/enums/order-status.enum';
+// 1. Import GET_SETTINGS to fetch currency data
+import { GET_SETTINGS } from '../../apollo/queries/settingsQueries';
 
 const { RangePicker } = DatePicker;
 const { Option } = Select;
@@ -17,7 +19,7 @@ const { Text, Title } = Typography;
 
 interface ProductItemInfo { id: string; name: string; }
 interface OrderItemData { id: string; product: ProductItemInfo; quantity: number; priceAtSale: number; }
-interface UserInfo { id: string; name?: string; email: string; }
+interface UserInfo { id:string; name?: string; email: string; }
 interface CustomerInfo { id: string; name: string; }
 
 interface OrderData {
@@ -29,6 +31,11 @@ interface OrderData {
   user: UserInfo;
   customer?: CustomerInfo;
   items: OrderItemData[];
+}
+
+interface SettingsData {
+  displayCurrency?: string;
+  baseCurrency?: string;
 }
 
 const orderStatusColors: { [key: string]: string } = {
@@ -58,7 +65,10 @@ const OrderListPage: React.FC = () => {
         setIsAddPaymentModalOpen(true);
     };
 
-  const { hasRole } = useAuth(); // If role-based features are added
+  const { hasRole } = useAuth();
+
+  // 2. Add the useQuery hook for settings
+  const { data: settingsData } = useQuery<{ settings: SettingsData }>(GET_SETTINGS);
 
   const queryVariables: any = {};
   if (filters.dateRange?.[0] && filters.dateRange?.[1]) {
@@ -73,6 +83,11 @@ const OrderListPage: React.FC = () => {
     variables: queryVariables,
     notifyOnNetworkStatusChange: true,
   });
+
+  // 3. Define the currencySymbol with fallbacks
+  const currencySymbol = useMemo(() => {
+    return settingsData?.settings.displayCurrency || settingsData?.settings.baseCurrency || '$';
+  }, [settingsData]);
 
   const [exportOrders, { loading: exportLoading }] = useLazyQuery<
     { exportOrdersAsCSV: string },
@@ -124,50 +139,50 @@ const OrderListPage: React.FC = () => {
   if (error) message.error(`Error loading orders: ${error.message}`);
 
   const columns = [
- {
-  title: 'Bill No',
-  dataIndex: 'billNumber',
-  key: 'billNumber',
-  render: (id: string) => (
-    <Space>
-      <Tooltip title={id}>
-        <code>{id.slice(0, 8)}...</code>
-      </Tooltip>
-      <Text copyable={{ text: id }} />
-    </Space>
-  ),
+   {
+    title: 'Bill No',
+    dataIndex: 'billNumber',
+    key: 'billNumber',
+    render: (id: string) => (
+      <Space>
+        <Tooltip title={id}>
+          <code>{id.slice(0, 8)}...</code>
+        </Tooltip>
+        <Text copyable={{ text: id }} />
+      </Space>
+    ),
    },
     { title: 'Date', dataIndex: 'createdAt', key: 'createdAt', render: (date: string) => dayjs(date).format('YYYY-MM-DD HH:mm') },
     { title: 'Customer', dataIndex: ['customer', 'name'], key: 'customerName', render: (name?: string) => name || <Text type="secondary">N/A</Text> },
     { title: 'Cashier', dataIndex: ['user', 'name'], key: 'userName', render: (name?: string, record?: OrderData) => name || record?.user.email },
-    { title: 'Total', dataIndex: 'totalAmount', key: 'totalAmount', render: (amount: number) => `$${amount.toFixed(2)}` },
+    // 4. Update the table column to use the dynamic symbol
+    { title: 'Total', dataIndex: 'totalAmount', key: 'totalAmount', render: (amount: number) => `${currencySymbol}${amount.toFixed(2)}` },
     { title: 'Status', dataIndex: 'status', key: 'status', render: (status: string) => <Tag color={orderStatusColors[status] || 'default'}>{status.toUpperCase()}</Tag> },
     {
-  title: 'Actions',
-  key: 'actions',
-  render: (_: any, record: OrderData) => (
-    <Space>
-      <Button
-        icon={<EyeOutlined />}
-        onClick={() => navigate(`/orders/${record.id}`)}
-      >
-        Details
-      </Button>
-
-      {hasRole([Role.ADMIN, Role.MANAGER, Role.CASHIER]) &&
-        record.status === OrderStatus.LAYAWAY && (
-          <Tooltip title="Add Payment">
-            <Button
-              size="small"
-              icon={<DollarCircleOutlined />}
-              onClick={() => openAddPaymentModal(record)}
-            />
-          </Tooltip>
-        )}
-    </Space>
-  ),
-}
-
+      title: 'Actions',
+      key: 'actions',
+      render: (_: any, record: OrderData) => (
+        <Space>
+          <Button
+            icon={<EyeOutlined />}
+            onClick={() => navigate(`/orders/${record.id}`)}
+          >
+            Details
+          </Button>
+    
+          {hasRole([Role.ADMIN, Role.MANAGER, Role.CASHIER]) &&
+            record.status === OrderStatus.LAYAWAY && (
+              <Tooltip title="Add Payment">
+                <Button
+                  size="small"
+                  icon={<DollarCircleOutlined />}
+                  onClick={() => openAddPaymentModal(record)}
+                />
+              </Tooltip>
+            )}
+        </Space>
+      ),
+    }
   ];
 
   return (
@@ -201,7 +216,8 @@ const OrderListPage: React.FC = () => {
         pagination={{ pageSize: 10 }}
         scroll={{ x: 'max-content' }}
       />
-
+      
+      {/* 5. Update the modal to use the dynamic symbol */}
       <Modal
         title={`Order Details - ID: ${selectedOrder?.id.slice(0, 8)}...`}
         open={isDetailModalOpen}
@@ -215,7 +231,7 @@ const OrderListPage: React.FC = () => {
             <p><strong>Customer:</strong> {selectedOrder.customer?.name || 'N/A'}</p>
             <p><strong>Cashier:</strong> {selectedOrder.user.name || selectedOrder.user.email}</p>
             <p><strong>Status:</strong> <Tag color={orderStatusColors[selectedOrder.status] || 'default'}>{selectedOrder.status.toUpperCase()}</Tag></p>
-            <p><strong>Total Amount:</strong> ${selectedOrder.totalAmount.toFixed(2)}</p>
+            <p><strong>Total Amount:</strong> {currencySymbol}{selectedOrder.totalAmount.toFixed(2)}</p>
 
             <List
               dataSource={selectedOrder.items}
@@ -223,9 +239,9 @@ const OrderListPage: React.FC = () => {
                 <List.Item>
                   <List.Item.Meta
                     title={item.product.name}
-                    description={`Qty: ${item.quantity} @ $${item.priceAtSale.toFixed(2)}`}
+                    description={`Qty: ${item.quantity} @ ${currencySymbol}${item.priceAtSale.toFixed(2)}`}
                   />
-                  <div>${(item.quantity * item.priceAtSale).toFixed(2)}</div>
+                  <div>{currencySymbol}{(item.quantity * item.priceAtSale).toFixed(2)}</div>
                 </List.Item>
               )}
             />

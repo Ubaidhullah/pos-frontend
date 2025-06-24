@@ -10,7 +10,8 @@ interface SettingsData {
   receiptShowLogo?: boolean; 
   receiptHeader?: string;   
   receiptFooter?: string;    
-
+  displayCurrency?: string;
+  baseCurrency?: string;
 }
 
 export interface OrderDataForReceipt {
@@ -47,6 +48,8 @@ const Receipt: React.FC<ReceiptProps> = ({ order }) => {
   }
 
   const settings = settingsData?.settings;
+   const currencySymbol = settings?.displayCurrency || settings?.baseCurrency || '$';
+
 
   return (
     <div className="receipt-paper">
@@ -78,7 +81,7 @@ const Receipt: React.FC<ReceiptProps> = ({ order }) => {
                 <tr key={index}>
                   <td className="col-qty">{item.quantity}</td>
                   <td className="col-item">{item.product.name}</td>
-                  <td className="col-price">${item.lineTotal.toFixed(2)}</td>
+                  <td className="col-price">{currencySymbol}{item.lineTotal.toFixed(2)}</td>
                 </tr>
               ))}
           </tbody>
@@ -89,23 +92,23 @@ const Receipt: React.FC<ReceiptProps> = ({ order }) => {
       <section className="receipt-section receipt-summary">
         <div className="summary-row">
           <span>Subtotal:</span>
-          <span>${order.subTotal.toFixed(2)}</span>
+          <span>{currencySymbol}{order.subTotal.toFixed(2)}</span>
         </div>
         {order.discountAmount > 0 && (
           <div className="summary-row">
             <span>Discount:</span>
-            <span>-${order.discountAmount.toFixed(2)}</span>
+            <span>-{currencySymbol}{order.discountAmount.toFixed(2)}</span>
           </div>
         )}
         {order.taxAmount > 0 && (
           <div className="summary-row">
             <span>Tax:</span>
-            <span>${order.taxAmount.toFixed(2)}</span>
+            <span>{currencySymbol}{order.taxAmount.toFixed(2)}</span>
           </div>
         )}
         <div className="summary-row total">
           <span>Total:</span>
-          <span>${order.grandTotal.toFixed(2)}</span>
+          <span>{currencySymbol}{order.grandTotal.toFixed(2)}</span>
         </div>
       </section>
 
@@ -115,16 +118,16 @@ const Receipt: React.FC<ReceiptProps> = ({ order }) => {
           order.payments.map((payment, index) => (
             <div key={index} className="summary-row">
               <span>{payment.method.replace('_', ' ')}:</span>
-              <span>${payment.amount.toFixed(2)}</span>
+              <span>{currencySymbol}{payment.amount.toFixed(2)}</span>
             </div>
           ))}
         <div className="summary-row">
           <span>Total Paid:</span>
-          <span>${order.amountPaid.toFixed(2)}</span>
+          <span>{currencySymbol}{order.amountPaid.toFixed(2)}</span>
         </div>
         <div className="summary-row total">
           <span>Change Due:</span>
-          <span>${order.changeGiven.toFixed(2)}</span>
+          <span>{currencySymbol}{order.changeGiven.toFixed(2)}</span>
         </div>
       </section>
 

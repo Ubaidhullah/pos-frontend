@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useMutation, useQuery } from '@apollo/client';
 import {
@@ -28,9 +28,15 @@ import { useAuth } from '../../contexts/AuthContext';
 import Receipt, { type OrderDataForReceipt } from '../pos/Receipt';
 import { useAntdNotice } from '../../contexts/AntdNoticeContext';
 import { Role } from '../../common/enums/role.enum';
+import { GET_SETTINGS } from '../../apollo/queries/settingsQueries';
 
 const { Title, Text, Paragraph } = Typography;
 const { confirm } = Modal;
+
+interface SettingsData {
+  displayCurrency?: string;
+  baseCurrency?: string;
+}
 
 const OrderDetailPage: React.FC = () => {
   const { id: orderId } = useParams<{ id: string }>();
@@ -39,6 +45,8 @@ const OrderDetailPage: React.FC = () => {
   const { messageApi } = useAntdNotice();
   const [isVoidModalVisible, setIsVoidModalVisible] = useState(false);
 
+  // 2. Add the useQuery hook to fetch settings
+  const { data: settingsData } = useQuery<{ settings: SettingsData }>(GET_SETTINGS);
 
   const { data, loading, error, refetch } = useQuery<{ order: OrderDataForReceipt }>(
     GET_ORDER_DETAILS_BY_ID,
@@ -50,11 +58,17 @@ const OrderDetailPage: React.FC = () => {
       }
     }
   );
+  
+  // 3. Define the currencySymbol with fallbacks
+  const currencySymbol = useMemo(() => {
+    return settingsData?.settings.displayCurrency || settingsData?.settings.baseCurrency || '$';
+  }, [settingsData]);
+
 
   const [voidOrder, { loading: voidLoading }] = useMutation(VOID_ORDER, {
       onCompleted: () => {
           messageApi.success('Order has been successfully voided.');
-          refetch(); // Refetch the order details to show the new "VOIDED" status
+          refetch();
       },
       onError: (err) => {
           messageApi.error(`Failed to void order: ${err.message}`);
@@ -64,9 +78,6 @@ const OrderDetailPage: React.FC = () => {
  const showVoidConfirm = () => {
   setIsVoidModalVisible(true);
 };
-
-
-
 
   const receiptRef = useRef<HTMLDivElement>(null);
       const handlePrint = useReactToPrint({
@@ -78,10 +89,7 @@ const OrderDetailPage: React.FC = () => {
   if (loading) {
     return <div style={{ textAlign: 'center', padding: '50px' }}><Spin size="large" tip="Loading Order Details..."/></div>;
   }
-
   
-  
-  // Use a more user-friendly error display that doesn't halt rendering
   if (error) {
     return (
       <div style={{ padding: '24px' }}>
@@ -90,27 +98,20 @@ const OrderDetailPage: React.FC = () => {
           description="Could not load the requested order. It may not exist or you may not have permission to view it."
           type="error"
           showIcon
-          action={
-            <Button type="primary" onClick={() => navigate('/orders')}>
-              Back to Orders List
-            </Button>
-          }
+          action={ <Button type="primary" onClick={() => navigate('/orders')}> Back to Orders List </Button> }
         />
       </div>
     );
   }
   
   const order = data?.order;
-  
-  // If query succeeds but returns no data
+
   if (!order) {
     return (
         <div style={{ padding: '24px' }}>
             <Empty description="No order found with the specified ID." />
             <div style={{textAlign: 'center', marginTop: '16px'}}>
-                 <Button type="primary" onClick={() => navigate('/orders')}>
-                    Back to Orders List
-                </Button>
+                 <Button type="primary" onClick={() => navigate('/orders')}> Back to Orders List </Button>
             </div>
         </div>
     );
@@ -120,19 +121,20 @@ const OrderDetailPage: React.FC = () => {
   const statusColors: Record<string, string> = { 
     COMPLETED: 'green', RETURNED: 'red', PARTIALLY_RETURNED: 'orange', CANCELLED: 'gray' 
   };
-
+  
+  // 4. Update the columns definitions to use the dynamic currencySymbol
   const itemColumns = [
     { title: 'Product', dataIndex: ['product', 'name'], key: 'productName' },
     { title: 'Qty', dataIndex: 'quantity', key: 'qty', align: 'center' as const },
-    { title: 'Price at Sale', dataIndex: 'priceAtSale', key: 'price', align: 'right' as const, render: (val: number) => `$${val.toFixed(2)}` },
-    { title: 'Discount', dataIndex: 'discountAmount', key: 'discount', align: 'right' as const, render: (val: number) => `-$${val.toFixed(2)}` },
-    { title: 'Final Price', key: 'final', align: 'right' as const, render: (_: any, record: any) => `$${(record.lineTotal - record.discountAmount).toFixed(2)}` },
-    { title: 'Line Total', dataIndex: 'finalLineTotal', key: 'lineTotal', align: 'right' as const, render: (val: number) => <Text strong>${val.toFixed(2)}</Text> },
+    { title: 'Price at Sale', dataIndex: 'priceAtSale', key: 'price', align: 'right' as const, render: (val: number) => `${currencySymbol}${val.toFixed(2)}` },
+    { title: 'Discount', dataIndex: 'discountAmount', key: 'discount', align: 'right' as const, render: (val: number) => `-${currencySymbol}${val.toFixed(2)}` },
+    { title: 'Final Price', key: 'final', align: 'right' as const, render: (_: any, record: any) => `${currencySymbol}${(record.lineTotal - record.discountAmount).toFixed(2)}` },
+    { title: 'Line Total', dataIndex: 'finalLineTotal', key: 'lineTotal', align: 'right' as const, render: (val: number) => <Text strong>{currencySymbol}{val.toFixed(2)}</Text> },
   ];
   
   const paymentColumns = [
       { title: 'Method', dataIndex: 'method', key: 'method', render: (val: string) => val.replace('_', ' ') },
-      { title: 'Amount', dataIndex: 'amount', key: 'amount', align: 'right' as const, render: (val: number) => `$${val.toFixed(2)}` }
+      { title: 'Amount', dataIndex: 'amount', key: 'amount', align: 'right' as const, render: (val: number) => `${currencySymbol}${val.toFixed(2)}` }
   ];
 
   return (
@@ -145,7 +147,6 @@ const OrderDetailPage: React.FC = () => {
               <Space>
                   <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/orders')}>Back to List</Button>
                   <Title level={2} style={{ margin: 0 }}>Order: {order.billNumber}</Title>
-                  {/* <Tag color={statusColors[order.status] || 'default'}>{order.status.replace('_', ' ')}</Tag> */}
               </Space>
             </Col>
             <Col>
@@ -193,12 +194,13 @@ const OrderDetailPage: React.FC = () => {
             <Table columns={itemColumns} dataSource={order.items} rowKey="id" pagination={false} bordered size="middle" />
             <Row justify="end" style={{marginTop: 24}}>
                 <Col xs={24} sm={12} md={8}>
+                    {/* 5. Update the Financial Summary section */}
                     <Card size="small" title="Financial Summary" variant="outlined">
                         <Descriptions column={1} layout="horizontal" size="small">
-                            <Descriptions.Item label="Subtotal">${order.itemsTotal.toFixed(2)}</Descriptions.Item>
-                            <Descriptions.Item label="Discount">-${order.discountAmount.toFixed(2)}</Descriptions.Item>
-                            <Descriptions.Item label="Tax">${order.taxAmount.toFixed(2)}</Descriptions.Item>
-                            <Descriptions.Item label={<Text strong>Grand Total</Text>}><Text strong>${order.grandTotal.toFixed(2)}</Text></Descriptions.Item>
+                            <Descriptions.Item label="Subtotal">{currencySymbol}{order.itemsTotal.toFixed(2)}</Descriptions.Item>
+                            <Descriptions.Item label="Discount">-{currencySymbol}{order.discountAmount.toFixed(2)}</Descriptions.Item>
+                            <Descriptions.Item label="Tax">{currencySymbol}{order.taxAmount.toFixed(2)}</Descriptions.Item>
+                            <Descriptions.Item label={<Text strong>Grand Total</Text>}><Text strong>{currencySymbol}{order.grandTotal.toFixed(2)}</Text></Descriptions.Item>
                         </Descriptions>
                     </Card>
                 </Col>
@@ -208,11 +210,12 @@ const OrderDetailPage: React.FC = () => {
           {/* --- Payments --- */}
           <Card title="Payments Received">
               <Table columns={paymentColumns} dataSource={order.payments} rowKey="id" pagination={false} size="small" bordered />
+              {/* 6. And the final payment totals */}
               <Row justify="end" style={{marginTop: 16}}>
                 <Col>
                     <Space direction="vertical" align="end" size="small">
-                        <Text strong>Total Paid: ${order.amountPaid.toFixed(2)}</Text>
-                        <Text strong>Change Given: ${order.changeGiven.toFixed(2)}</Text>
+                        <Text strong>Total Paid: {currencySymbol}{order.amountPaid.toFixed(2)}</Text>
+                        <Text strong>Change Given: {currencySymbol}{order.changeGiven.toFixed(2)}</Text>
                     </Space>
                 </Col>
               </Row>
@@ -236,7 +239,6 @@ const OrderDetailPage: React.FC = () => {
         <ExclamationCircleOutlined style={{ fontSize: 20, color: '#faad14', marginRight: 8 }} />
         This action is irreversible. All items will be returned to stock.
       </Modal>
-
 
       {/* --- Hidden Component for Printing --- */}
       <div className="receipt-container-hidden">
