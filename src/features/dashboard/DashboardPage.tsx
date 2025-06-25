@@ -1,21 +1,22 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useQuery } from '@apollo/client';
-import { Row, Col, Card, Statistic, Spin, Alert, Table, Tag, Typography, List, Empty } from 'antd';
+import { Row, Col, Card, Statistic, Spin, Alert, Table, Tag, Typography, Empty, Button } from 'antd';
 import {
   DollarCircleOutlined,
   ShoppingCartOutlined,
   WarningOutlined,
-  UserOutlined, // For current user display
-  TeamOutlined, // For customer
+  TeamOutlined,
+  ArrowRightOutlined,
 } from '@ant-design/icons';
-import moment from 'moment';
-import { Link } from 'react-router-dom';
+import dayjs from 'dayjs'; // Changed from moment to dayjs for consistency with other components
+import { Link, useNavigate } from 'react-router-dom';
 import { GET_DASHBOARD_SUMMARY, GET_RECENT_ORDERS_FOR_DASHBOARD, GET_LOW_STOCK_ITEMS } from '../../apollo/queries/dashboardQueries';
-import { useAuth } from '../../contexts/AuthContext'; // To greet the user
+import { GET_SETTINGS } from '../../apollo/queries/settingsQueries'; // Import GET_SETTINGS
+import { useAuth } from '../../contexts/AuthContext';
 
 const { Title, Text } = Typography;
 
-// Define types for the data you expect from GraphQL
+// --- Interface Definitions ---
 interface DashboardSummaryData {
   dashboardSummary: {
     totalSalesToday: number;
@@ -25,9 +26,10 @@ interface DashboardSummaryData {
 }
 
 interface CustomerInfo { id: string; name?: string; }
-interface UserInfo { id: string; name?: string; }
+interface UserInfo { id: string; name?: string; email: string }
 interface RecentOrderData {
   id: string;
+  billNumber: string; // Assuming billNumber is available for a better link
   totalAmount: number;
   status: string;
   createdAt: string;
@@ -44,115 +46,151 @@ interface LowStockItemData {
   };
 }
 
+interface SettingsData {
+  displayCurrency?: string;
+  baseCurrency?: string;
+}
+
+const statusColors: { [key: string]: string } = {
+  COMPLETED: 'green',
+  PENDING: 'gold',
+  CANCELLED: 'red',
+  LAYAWAY: 'orange',
+  PARTIALLY_RETURNED: 'purple',
+  RETURNED: 'red',
+};
+
 
 const DashboardPage: React.FC = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
 
+  // --- GraphQL Queries ---
   const { data: summaryData, loading: summaryLoading, error: summaryError } =
     useQuery<DashboardSummaryData>(GET_DASHBOARD_SUMMARY);
 
   const { data: recentOrdersData, loading: recentOrdersLoading, error: recentOrdersError } =
     useQuery<{ recentOrders: RecentOrderData[] }>(GET_RECENT_ORDERS_FOR_DASHBOARD, {
-      variables: { limit: 5 }, // Fetch top 5 recent orders
+      variables: { limit: 5 },
     });
 
   const { data: lowStockData, loading: lowStockLoading, error: lowStockError } =
     useQuery<{ lowStockItems: LowStockItemData[] }>(GET_LOW_STOCK_ITEMS, {
-      variables: { threshold: 10, limit: 5 }, // Items with stock <= 10
+      variables: { threshold: 10, limit: 5 },
     });
+
+  const { data: settingsData } = useQuery<{ settings: SettingsData }>(GET_SETTINGS);
+  
+  // --- Memoized Values ---
+  const currencySymbol = useMemo(() => {
+    return settingsData?.settings.displayCurrency || settingsData?.settings.baseCurrency || '$';
+  }, [settingsData]);
 
   const summary = summaryData?.dashboardSummary;
 
+  // --- Table Column Definitions ---
   const recentOrdersColumns = [
-    { title: 'Order ID', dataIndex: 'id', key: 'id', render: (id: string) => <Link to={`/orders/${id}`}>{id.substring(0, 8)}...</Link> },
-    { title: 'Customer', dataIndex: ['customer', 'name'], key: 'customer', render: (name?: string) => name || <Text type="secondary">N/A</Text> },
-    { title: 'Total', dataIndex: 'totalAmount', key: 'total', render: (amount: number) => `$${amount.toFixed(2)}` },
-    { title: 'Status', dataIndex: 'status', key: 'status', render: (status: string) => <Tag color={status === 'COMPLETED' ? 'green' : (status === 'PENDING' ? 'gold' : 'red')}>{status}</Tag> },
-    { title: 'Date', dataIndex: 'createdAt', key: 'createdAt', render: (date: string) => moment(date).format('YYYY-MM-DD HH:mm') },
+    { title: 'Order #', dataIndex: 'billNumber', key: 'billNumber', render: (text: string, record: RecentOrderData) => <Link to={`/orders/${record.id}`}>{text}</Link> },
+    { title: 'Customer', dataIndex: ['customer', 'name'], key: 'customer', render: (name?: string) => name || <Text type="secondary">Walk-in</Text> },
+    { title: 'Total', dataIndex: 'totalAmount', key: 'total', align: 'right' as const, render: (amount: number) => `${currencySymbol}${amount.toFixed(2)}` },
+    { title: 'Status', dataIndex: 'status', key: 'status', align: 'center' as const, render: (status: string) => <Tag color={statusColors[status] || 'default'}>{status}</Tag> },
+    { title: 'Date', dataIndex: 'createdAt', key: 'createdAt', render: (date: string) => dayjs(date).format('YYYY-MM-DD HH:mm') },
   ];
 
   const lowStockColumns = [
-    { title: 'Product', dataIndex: 'name', key: 'name', render: (name: string, record: LowStockItemData) => <Link to={`/admin/products/edit/${record.id}`}>{name}</Link>}, // Assuming you have an edit route or similar
+    { title: 'Product', dataIndex: 'name', key: 'name', render: (name: string, record: LowStockItemData) => <Link to={`/products`}>{name}</Link>},
     { title: 'SKU', dataIndex: 'sku', key: 'sku' },
-    { title: 'Stock', dataIndex: ['inventoryItem', 'quantity'], key: 'quantity', render: (qty?: number) => <Tag color="red">{qty ?? 'N/A'}</Tag> },
+    { title: 'Stock Left', dataIndex: ['inventoryItem', 'quantity'], key: 'quantity', align: 'center' as const, render: (qty?: number) => <Tag color="red">{qty ?? 'N/A'}</Tag> },
   ];
-
-
+  
+  // --- Render Component ---
   return (
-    <div>
+    <div style={{ padding: '16px 24px' }}>
       <Title level={2} style={{ marginBottom: '24px' }}>
         Welcome back, {user?.name || user?.email || 'User'}!
       </Title>
 
       {summaryError && <Alert message="Error loading summary data" description={summaryError.message} type="error" showIcon closable style={{ marginBottom: 16 }} />}
+      
+      {/* Statistic Cards */}
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-        <Col xs={24} sm={12} md={8} lg={6}>
-          <Card bordered={false} hoverable>
-            {summaryLoading ? <Spin /> : (
+        <Col xs={24} sm={12} md={8}>
+          <Card bordered={false} style={{ background: 'linear-gradient(135deg, #f6ffed 0%, #b7eb8f 100%)' }}>
+            <Spin spinning={summaryLoading}>
               <Statistic
-                title="Total Sales Today"
+                title={<Title level={5} style={{color: '#3f8600', margin: 0}}>Total Sales Today</Title>}
                 value={summary?.totalSalesToday ?? 0}
                 precision={2}
                 prefix={<DollarCircleOutlined />}
-                valueStyle={{ color: '#3f8600' }}
+                valueStyle={{ color: '#3f8600', fontWeight: 500 }}
               />
-            )}
+            </Spin>
           </Card>
         </Col>
-        <Col xs={24} sm={12} md={8} lg={6}>
-          <Card bordered={false} hoverable>
-            {summaryLoading ? <Spin /> : (
+        <Col xs={24} sm={12} md={8}>
+          <Card bordered={false} style={{ background: 'linear-gradient(135deg, #e6f7ff 0%, #91d5ff 100%)' }}>
+            <Spin spinning={summaryLoading}>
               <Statistic
-                title="Orders Today"
+                title={<Title level={5} style={{color: '#096dd9', margin: 0}}>Orders Today</Title>}
                 value={summary?.ordersTodayCount ?? 0}
                 prefix={<ShoppingCartOutlined />}
-                valueStyle={{ color: '#1890ff' }}
+                valueStyle={{ color: '#096dd9', fontWeight: 500 }}
               />
-            )}
+            </Spin>
           </Card>
         </Col>
-        <Col xs={24} sm={12} md={8} lg={6}>
-          <Card bordered={false} hoverable>
-            {summaryLoading ? <Spin /> : (
+        <Col xs={24} sm={12} md={8}>
+          <Card bordered={false} style={{ background: 'linear-gradient(135deg, #fff1f0 0%, #ffa39e 100%)' }}>
+             <Spin spinning={summaryLoading}>
               <Statistic
-                title="Low Stock Items"
+                title={<Title level={5} style={{color: '#cf1322', margin: 0}}>Low Stock Items</Title>}
                 value={summary?.lowStockItemsCount ?? 0}
                 prefix={<WarningOutlined />}
-                valueStyle={{ color: '#cf1322' }}
+                valueStyle={{ color: '#cf1322', fontWeight: 500 }}
               />
-            )}
+            </Spin>
           </Card>
         </Col>
-        {/* Add more Statistic Cards here if needed */}
       </Row>
 
-      <Row gutter={[16, 16]}>
-        <Col xs={24} lg={12}>
-          <Card title="Recent Orders" bordered={false}>
+      {/* Tables for Recent Orders and Low Stock */}
+      <Row gutter={[24, 24]}>
+        <Col xs={24} lg={14}>
+          <Card 
+            title="Recent Sales" 
+            bordered={false}
+            extra={<Button type="link" onClick={() => navigate('/orders')}>View All <ArrowRightOutlined /></Button>}
+          >
             {recentOrdersError && <Alert message="Error loading recent orders" description={recentOrdersError.message} type="error" showIcon />}
             <Table
               columns={recentOrdersColumns}
               dataSource={recentOrdersData?.recentOrders}
               loading={recentOrdersLoading}
               rowKey="id"
-              pagination={false} // Or simple pagination { pageSize: 5 }
+              pagination={false}
               size="small"
+              scroll={{ x: 'max-content' }}
+              locale={{ emptyText: <Empty description="No recent sales." /> }}
             />
-            {(!recentOrdersLoading && (!recentOrdersData || recentOrdersData.recentOrders.length === 0)) && <Empty description="No recent orders found." />}
           </Card>
         </Col>
-        <Col xs={24} lg={12}>
-          <Card title="Low Stock Items (<= 10)" bordered={false}>
+        <Col xs={24} lg={10}>
+          <Card 
+            title="Low Stock Alert (<= 10)" 
+            bordered={false}
+            extra={<Button type="link" onClick={() => navigate('/products')}>Manage Products <ArrowRightOutlined /></Button>}
+          >
             {lowStockError && <Alert message="Error loading low stock items" description={lowStockError.message} type="error" showIcon />}
             <Table
               columns={lowStockColumns}
               dataSource={lowStockData?.lowStockItems}
               loading={lowStockLoading}
               rowKey="id"
-              pagination={false} // Or simple pagination { pageSize: 5 }
+              pagination={false}
               size="small"
+              scroll={{ x: 'max-content' }}
+              locale={{ emptyText: <Empty description="No items with low stock." /> }}
             />
-             {(!lowStockLoading && (!lowStockData || lowStockData.lowStockItems.length === 0)) && <Empty description="No low stock items found." />}
           </Card>
         </Col>
       </Row>

@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, Form, Button, Select, InputNumber, Space, Statistic, Divider, Row, Col, message } from 'antd';
+import { Modal, Form, Button, Select, InputNumber, Space, Statistic, Divider, Row, Col, message, Grid } from 'antd';
 import { DollarCircleOutlined, PlusOutlined, DeleteOutlined } from '@ant-design/icons';
-import { PaymentMethod } from '../../common/enums/payment-method.enum'; // Create this frontend enum
+import { PaymentMethod } from '../../common/enums/payment-method.enum';
 import { useAntdNotice } from '../../contexts/AntdNoticeContext';
 
-
+const { useBreakpoint } = Grid;
 
 export interface PaymentInput {
   method: PaymentMethod;
@@ -26,6 +26,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ open, onClose, totalAmountD
   const [form] = Form.useForm();
   const [totalPaid, setTotalPaid] = useState(0);
   const { messageApi } = useAntdNotice();
+  const screens = useBreakpoint();
   
 
   // Reset form when modal is opened or closed
@@ -33,7 +34,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ open, onClose, totalAmountD
     if (open) {
       // Start with one cash payment line by default, for the full amount
       form.setFieldsValue({
-        payments: [{ method: PaymentMethod.CASH, amount: totalAmountDue > 0 ? totalAmountDue : 0 }]
+        payments: [{ method: PaymentMethod.CASH, amount: totalAmountDue > 0 ? parseFloat(totalAmountDue.toFixed(2)) : 0 }]
       });
       setTotalPaid(totalAmountDue);
     } else {
@@ -63,7 +64,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ open, onClose, totalAmountD
       title="Process Payment"
       open={open}
       onCancel={onClose}
-      width={600}
+      width={screens.md ? 600 : 'auto'} // Adjust width for mobile
       footer={[
                 <Button key="back" onClick={onClose} disabled={isProcessing}>Cancel</Button>,
                 <Button key="submit" type="primary" loading={isProcessing} onClick={form.submit}
@@ -75,23 +76,23 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ open, onClose, totalAmountD
             ]}
       destroyOnClose
     >
-      <Row gutter={16} align="middle" style={{ marginBottom: 24 }}>
-        <Col span={12}>
+      <Row gutter={[16, 16]} align="middle" style={{ marginBottom: 24 }}>
+        <Col xs={24} sm={12}>
           <Statistic
             title="Total Amount Due"
             value={totalAmountDue}
             precision={2}
             prefix={currencySymbol}
-            valueStyle={{ fontSize: '2em' }}
+            valueStyle={{ fontSize: screens.xs ? '1.5em' : '2em' }}
           />
         </Col>
-        <Col span={12}>
+        <Col xs={24} sm={12}>
           <Statistic
             title={changeDue >= 0 ? "Change Due" : "Amount Remaining"}
             value={Math.abs(changeDue)}
             precision={2}
             prefix={currencySymbol}
-            valueStyle={{ color: changeDue >= 0 ? '#3f8600' : '#cf1322', fontSize: '2em' }}
+            valueStyle={{ color: changeDue >= 0 ? '#3f8600' : '#cf1322', fontSize: screens.xs ? '1.5em' : '2em' }}
           />
         </Col>
       </Row>
@@ -101,34 +102,48 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ open, onClose, totalAmountD
           {(fields, { add, remove }) => (
             <>
               {fields.map(({ key, name, ...restField }) => (
-                <Space key={key} style={{ display: 'flex', marginBottom: 8 }} align="baseline">
-                  <Form.Item
-                    {...restField}
-                    name={[name, 'method']}
-                    rules={[{ required: true, message: 'Method is required' }]}
-                    initialValue={PaymentMethod.CASH}
-                  >
-                    <Select style={{ width: 150 }}>
-                      {Object.values(PaymentMethod).map(method => (
-                        <Select.Option key={method} value={method}>
-                          {method.replace('_', ' ')}
-                        </Select.Option>
-                      ))}
-                    </Select>
-                  </Form.Item>
-                  <Form.Item
-                    {...restField}
-                    name={[name, 'amount']}
-                    rules={[{ required: true, message: 'Amount is required' }, { type: 'number', min: 0.01 }]}
-                  >
-                    <InputNumber prefix={currencySymbol} precision={2} style={{ width: 150 }} placeholder="Amount" />
-                  </Form.Item>
-                  <DeleteOutlined onClick={() => remove(name)} style={{color: 'red', cursor: 'pointer'}}/>
-                </Space>
+                // Use Row and Col for responsive layout
+                <Row key={key} gutter={[8, 8]} align="middle" style={{ marginBottom: 16 }}>
+                  <Col xs={24} sm={10}>
+                    <Form.Item
+                      {...restField}
+                      name={[name, 'method']}
+                      rules={[{ required: true, message: 'Method is required' }]}
+                      initialValue={PaymentMethod.CASH}
+                      style={{ marginBottom: 0 }}
+                    >
+                      <Select style={{ width: '100%' }}>
+                        {Object.values(PaymentMethod).map(method => (
+                          <Select.Option key={method} value={method}>
+                            {method.replace('_', ' ')}
+                          </Select.Option>
+                        ))}
+                      </Select>
+                    </Form.Item>
+                  </Col>
+                  <Col xs={20} sm={11}>
+                    <Form.Item
+                      {...restField}
+                      name={[name, 'amount']}
+                      rules={[{ required: true, message: 'Amount is required' }, { type: 'number', min: 0.01 }]}
+                      style={{ marginBottom: 0 }}
+                    >
+                      <InputNumber prefix={currencySymbol} precision={2} style={{ width: '100%' }} placeholder="Amount" />
+                    </Form.Item>
+                  </Col>
+                  <Col xs={4} sm={3} style={{ textAlign: 'right' }}>
+                     <Button
+                        type="text"
+                        danger
+                        icon={<DeleteOutlined />}
+                        onClick={() => remove(name)}
+                      />
+                  </Col>
+                </Row>
               ))}
               <Form.Item>
                 <Button type="dashed" onClick={() => add({ method: PaymentMethod.CARD, amount: 0 })} block icon={<PlusOutlined />}>
-                  Add Payment Method (for Split Payments)
+                  Add Split Payment
                 </Button>
               </Form.Item>
             </>
