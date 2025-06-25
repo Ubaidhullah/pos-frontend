@@ -1,12 +1,22 @@
-import React from 'react';
-import { useLazyQuery } from '@apollo/client';
+import React, { useMemo } from 'react';
+import { useLazyQuery, useQuery } from '@apollo/client';
 import { Table, Spin, Alert, Typography } from 'antd';
 import ReportLayout from './ReportLayout';
 import { GET_OUTSTANDING_BILLS_REPORT } from '../../apollo/queries/reportingQueries';
 import dayjs from 'dayjs';
 import { useAntdNotice } from '../../contexts/AntdNoticeContext';
+import { GET_SETTINGS } from '../../apollo/queries/settingsQueries';
+
+
 
 const { Text } = Typography;
+
+
+interface SettingsInfo {
+  displayCurrency?: string;
+  baseCurrency?: string;
+}
+
 
 const OutstandingBillsReport: React.FC = () => {
   const { messageApi } = useAntdNotice();
@@ -16,6 +26,12 @@ const OutstandingBillsReport: React.FC = () => {
       messageApi.error(`Error fetching report: ${err.message}`);
     }
   });
+
+  const { data: settingsData } = useQuery<{ settings: SettingsInfo }>(GET_SETTINGS);
+
+  const currencySymbol = useMemo(() => {
+                return settingsData?.settings.displayCurrency || settingsData?.settings.baseCurrency || '$';
+              }, [settingsData]);
 
   const handleGenerate = (filters: { startDate: string; endDate: string }) => {
     fetchReport({ variables: { filters } });
@@ -40,15 +56,15 @@ const OutstandingBillsReport: React.FC = () => {
     { title: 'Date', dataIndex: 'createdAt', key: 'date', render: (val: string) => dayjs(val).format('YYYY-MM-DD') },
     { title: 'Customer', dataIndex: ['customer', 'name'], key: 'customer', render: (name?: string) => name || 'N/A' },
     { title: 'Status', dataIndex: 'status', key: 'status' },
-    { title: 'Total Due', dataIndex: 'grandTotal', key: 'grandTotal', render: (val: number) => `$${val.toFixed(2)}`, align: 'right' as const },
-    { title: 'Amount Paid', dataIndex: 'amountPaid', key: 'amountPaid', render: (val: number) => `$${val.toFixed(2)}`, align: 'right' as const },
+    { title: 'Total Due', dataIndex: 'grandTotal', key: 'grandTotal', render: (val: number) => `${currencySymbol}${val.toFixed(2)}`, align: 'right' as const },
+    { title: 'Amount Paid', dataIndex: 'amountPaid', key: 'amountPaid', render: (val: number) => `${currencySymbol}${val.toFixed(2)}`, align: 'right' as const },
     {
       title: 'Amount Remaining',
       key: 'due',
       align: 'right' as const,
       render: (_: any, record: any) => (
         <Text type="danger" strong>
-          ${(record.grandTotal - record.amountPaid).toFixed(2)}
+          {currencySymbol}{(record.grandTotal - record.amountPaid).toFixed(2)}
         </Text>
       )
     },

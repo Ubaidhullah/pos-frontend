@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Modal, Form, Input, Button, message, InputNumber, Select, Row, Col, Divider, Space, Tooltip, Upload,
 } from 'antd';
@@ -13,6 +13,8 @@ import { UPLOAD_PRODUCT_IMAGE } from '../../apollo/mutations/fileMutations';
 import { CREATE_PRODUCT, UPDATE_PRODUCT } from '../../apollo/mutations/productMutations';
 import { GET_PRODUCTS } from '../../apollo/queries/productQueries';
 import { useAntdNotice } from '../../contexts/AntdNoticeContext';
+import { GET_SETTINGS } from '../../apollo/queries/settingsQueries';
+
 
 const { Option } = Select;
 const { TextArea } = Input;
@@ -32,7 +34,6 @@ interface ProductFormValues {
   standardCostPrice: number;
   outletReorderLimit?: number;
   taxIds?: string[];
-  // The 'imageUrls' field on the form is now specifically for the AntD Upload component
   imageUrls: UploadFile[];
   initialQuantity?: number;
 }
@@ -59,6 +60,11 @@ interface ProductFormModalProps {
   onSuccess?: (newProductId: string) => void;
 }
 
+interface SettingsInfo {
+  displayCurrency?: string;
+  baseCurrency?: string;
+}
+
 const ProductFormModal: React.FC<ProductFormModalProps> = ({ open, onClose, productToEdit, onSuccess }) => {
   const [form] = Form.useForm<ProductFormValues>();
   const { messageApi } = useAntdNotice();
@@ -67,6 +73,7 @@ const ProductFormModal: React.FC<ProductFormModalProps> = ({ open, onClose, prod
   // --- GraphQL ---
   const { data: categoriesData, loading: categoriesLoading } = useQuery<{ categories: CategoryInfo[] }>(GET_CATEGORIES);
   const { data: taxesData, loading: taxesLoading } = useQuery<{ taxes: TaxInfo[] }>(GET_TAXES);
+  const { data: settingsData } = useQuery<{ settings: SettingsInfo }>(GET_SETTINGS);
   
   const [uploadImage, { loading: uploadLoading }] = useMutation<{ uploadProductImage: string }, { file: any }>(UPLOAD_PRODUCT_IMAGE);
   const [createProduct, { loading: createLoading }] = useMutation(CREATE_PRODUCT, {
@@ -81,6 +88,10 @@ const ProductFormModal: React.FC<ProductFormModalProps> = ({ open, onClose, prod
   
   const isEditMode = !!productToEdit;
   const isLoading = createLoading || updateLoading;
+
+  const currencySymbol = useMemo(() => {
+            return settingsData?.settings.displayCurrency || settingsData?.settings.baseCurrency || '$';
+          }, [settingsData]);
 
   // --- Form Setup & Price Logic ---
   useEffect(() => {
@@ -237,19 +248,19 @@ const ProductFormModal: React.FC<ProductFormModalProps> = ({ open, onClose, prod
           </Col>
           <Col span={12}>
             <Form.Item name="standardCostPrice" label="Standard Cost Price" rules={[{ required: true }]}>
-                <InputNumber addonBefore="$" style={{ width: '100%' }} min={0} precision={2} />
+                <InputNumber addonBefore={currencySymbol} style={{ width: '100%' }} min={0} precision={2} />
             </Form.Item>
           </Col>
         </Row>
         <Row gutter={24}>
             <Col span={12}>
                 <Form.Item name="price" label="Price (before tax)" tooltip="Calculates Price (inc. tax) automatically.">
-                    <InputNumber addonBefore="$" style={{ width: '100%' }} min={0} precision={2} />
+                    <InputNumber addonBefore={currencySymbol} style={{ width: '100%' }} min={0} precision={2} />
                 </Form.Item>
             </Col>
             <Col span={12}>
                 <Form.Item name="priceIncTax" label="Price (inc. tax)" tooltip="Calculates Price (before tax) automatically.">
-                    <InputNumber addonBefore="$" style={{ width: '100%' }} min={0} precision={2} />
+                    <InputNumber addonBefore={currencySymbol} style={{ width: '100%' }} min={0} precision={2} />
                 </Form.Item>
             </Col>
         </Row>

@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useLazyQuery } from '@apollo/client';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useLazyQuery, useQuery } from '@apollo/client';
 import { Row, Col, Card, Statistic, Spin, Alert, DatePicker, Button, Typography, Table, message } from 'antd';
 import {
   DollarCircleOutlined, ShoppingCartOutlined, CalculatorOutlined, SearchOutlined,
@@ -15,6 +15,8 @@ import {
 } from '../../apollo/queries/reportingQueries';
 import { useAuth } from '../../contexts/AuthContext';
 import { Role } from '../../common/enums/role.enum';
+import { GET_SETTINGS } from '../../apollo/queries/settingsQueries';
+
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
@@ -41,6 +43,11 @@ interface TopProductData {
   }[];
 }
 
+interface SettingsInfo {
+  displayCurrency?: string;
+  baseCurrency?: string;
+}
+
 const ReportingPage: React.FC = () => {
   const { hasRole } = useAuth();
   const [dateRange, setDateRange] = useState<[Dayjs, Dayjs]>([
@@ -52,7 +59,11 @@ const ReportingPage: React.FC = () => {
   const [fetchDailySales, { data: dailySalesData, loading: dailySalesLoading }] = useLazyQuery<DailySalesData>(GET_DAILY_SALES);
   const [fetchCategoryBreakdown, { data: categoryData, loading: categoryLoading }] = useLazyQuery<CategoryBreakdownData>(GET_SALES_BREAKDOWN_BY_CATEGORY);
   const [fetchTopProducts, { data: topProductsData, loading: topProductsLoading }] = useLazyQuery<TopProductData>(GET_TOP_SELLING_PRODUCTS);
-
+  const { data: settingsData } = useQuery<{ settings: SettingsInfo }>(GET_SETTINGS);
+  
+  const currencySymbol = useMemo(() => {
+            return settingsData?.settings.displayCurrency || settingsData?.settings.baseCurrency || '$';
+          }, [settingsData]);
   const isLoading = summaryLoading || dailySalesLoading || categoryLoading || topProductsLoading;
 
   const fetchAllReports = () => {
@@ -88,10 +99,10 @@ const ReportingPage: React.FC = () => {
     yField: 'value',
     xAxis: { tickCount: 5 },
     yAxis: {
-      label: { formatter: (v: string) => `$${v}` }
+      label: { formatter: (v: string) => `${currencySymbol}${v}` }
     },
     tooltip: {
-      formatter: (datum: any) => ({ name: 'Sales', value: `$${datum.value.toFixed(2)}` })
+      formatter: (datum: any) => ({ name: 'Sales', value: `${currencySymbol}${datum.value.toFixed(2)}` })
     },
     smooth: true,
   };
@@ -107,13 +118,13 @@ const ReportingPage: React.FC = () => {
       offset: '-50%',
       content: '{value}',
       style: { textAlign: 'center', fontSize: 14, fill: '#fff' },
-      formatter: (datum: any) => `$${datum.totalSales.toFixed(0)}`,
+      formatter: (datum: any) => `${currencySymbol}${datum.totalSales.toFixed(0)}`,
     },
     interactions: [{ type: 'element-active' }],
     tooltip: {
       formatter: (datum: any) => ({
         name: datum.categoryName,
-        value: `$${datum.totalSales.toFixed(2)}`
+        value: `${currencySymbol}${datum.totalSales.toFixed(2)}`
       })
     },
   };
@@ -122,7 +133,7 @@ const ReportingPage: React.FC = () => {
     { title: 'Product Name', dataIndex: ['product', 'name'], key: 'name' },
     { title: 'SKU', dataIndex: ['product', 'sku'], key: 'sku' },
     { title: 'Total Units Sold', dataIndex: 'totalQuantitySold', key: 'units', align: 'right' as const },
-    { title: 'Total Revenue', dataIndex: 'totalRevenue', key: 'revenue', align: 'right' as const, render: (val: number) => `$${val.toFixed(2)}` },
+    { title: 'Total Revenue', dataIndex: 'totalRevenue', key: 'revenue', align: 'right' as const, render: (val: number) => `${currencySymbol}${val.toFixed(2)}` },
   ];
 
   return (

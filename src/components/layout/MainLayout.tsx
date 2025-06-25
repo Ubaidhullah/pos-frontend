@@ -94,8 +94,8 @@ const MainLayout: React.FC = () => {
         icon: <AppstoreOutlined />,
         label: 'Products & Stock',
         children: [
-          { key: '/admin/products', icon: <AppstoreOutlined />, label: <Link to="/admin/products">Products</Link> },
-          { key: '/admin/categories', icon: <BarcodeOutlined />, label: <Link to="/admin/categories">Categories</Link> },
+          { key: '/admin/productspage', icon: <AppstoreOutlined />, label: <Link to="/admin/productspage">Products</Link> },
+          // { key: '/admin/categories', icon: <BarcodeOutlined />, label: <Link to="/admin/categories">Categories</Link> },
           { key: '/admin/inventory', icon: <ShoppingOutlined />, label: <Link to="/admin/inventory">Inventory</Link> },
           { key: '/admin/suppliers', icon: <SolutionOutlined />, label: <Link to="/admin/suppliers">Suppliers</Link> },
           { key: '/admin/purchase-orders', icon: <ShoppingOutlined />, label: <Link to="/admin/purchase-orders">Purchase Orders</Link> },

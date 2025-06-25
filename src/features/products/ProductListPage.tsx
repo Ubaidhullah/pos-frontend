@@ -6,29 +6,50 @@ import { GET_PRODUCTS } from '../../apollo/queries/productQueries';
 import { DELETE_PRODUCT } from '../../apollo/mutations/productMutations';
 import { useAuth } from '../../contexts/AuthContext';
 import { Role } from '../../common/enums/role.enum';
-import ProductFormModal, { type ProductToEdit } from './ProductForm'; // We'll update the interface
+import ProductFormModal, { type ProductToEdit } from './ProductForm';
+import { GET_SETTINGS } from '../../apollo/queries/settingsQueries';
 
-const { Title } = Typography;
 
-// 👇 Update the interface to include imageUrls
+const { Title, Text } = Typography;
+
+// Interfaces updated to ensure tax 'rate' and the 'pricesEnteredWithTax' setting are available
+interface TaxInfo {
+  id: string;
+  name: string;
+  rate: number;
+}
+
 interface ProductListData {
   id: string;
   name: string;
   sku: string;
   price: number;
-  imageUrls: string[]; // <-- The array of image URLs
+  imageUrls: string[]; 
   category?: { name: string; };
   inventoryItem?: { quantity: number; };
-  taxes: { name: string; }[];
+  taxes: TaxInfo[];
+}
+
+interface SettingsInfo {
+  displayCurrency?: string;
+  baseCurrency?: string;
+  pricesEnteredWithTax?: boolean;
 }
 
 const ProductListPage: React.FC = () => {
   const { data, loading, error, refetch } = useQuery<{ products: ProductListData[] }>(GET_PRODUCTS);
   const [deleteProductMutation, { loading: deleteLoading }] = useMutation(DELETE_PRODUCT);
-  const { hasRole, user: currentUser } = useAuth();
+  const { hasRole } = useAuth();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<ProductToEdit | null>(null);
   const [searchTerm, setSearchTerm] = useState(''); 
+  const { data: settingsData } = useQuery<{ settings: SettingsInfo }>(GET_SETTINGS);
+
+  const currencySymbol = useMemo(() => {
+          return settingsData?.settings.displayCurrency || settingsData?.settings.baseCurrency || '$';
+        }, [settingsData]);
+
+  const pricesEnteredWithTax = settingsData?.settings.pricesEnteredWithTax || false;
 
   const filteredProducts = useMemo(() => {
     if (!data?.products) return [];
@@ -48,9 +69,8 @@ const ProductListPage: React.FC = () => {
 
   const handleDelete = async (product: ProductListData) => {
     try {
-      // Pass the current user to the service via the resolver for audit logging
       await deleteProductMutation({
-        variables: { id: product.id }, // The resolver will get the user from context
+        variables: { id: product.id },
         refetchQueries: [{ query: GET_PRODUCTS }],
       });
       message.success(`Product "${product.name}" deleted successfully`);
@@ -60,19 +80,17 @@ const ProductListPage: React.FC = () => {
   };
 
   const showEditModal = (product: ProductListData) => {
-    // Map the list data to the shape the form expects
     const productToEdit: ProductToEdit = {
       ...product,
-      categoryId: (product as any).category?.id, // Get categoryId if it exists in your full query for editing
-      taxes: (product as any).taxes?.map((t: any) => ({id: t.id})),
+      categoryId: (product as any).category?.id,
+      taxes: product.taxes?.map((t: TaxInfo) => ({id: t.id})),
     };
     setEditingProduct(productToEdit);
     setIsModalOpen(true);
   };
 
-
+  // --- Corrected Columns Definition ---
   const columns = [
-    // 👇 NEW "Image" COLUMN
     {
         title: 'Image',
         dataIndex: 'imageUrls',
@@ -82,8 +100,8 @@ const ProductListPage: React.FC = () => {
             imageUrls && imageUrls.length > 0 ? (
                 <Image
                     width={50}
-                    src={imageUrls[0]} // Show the first image as a thumbnail
-                    preview={{ src: imageUrls[0] }} // Clicking it will show a larger preview
+                    src={imageUrls[0]}
+                    preview={{ src: imageUrls[0] }}
                 />
             ) : (
                 <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={false} />
@@ -94,7 +112,65 @@ const ProductListPage: React.FC = () => {
     { title: 'SKU', dataIndex: 'sku', key: 'sku' },
     { title: 'Category', dataIndex: ['category', 'name'], key: 'categoryName', render: (name?: string) => name || <Tag>N/A</Tag> },
     { title: 'Stock', dataIndex: ['inventoryItem', 'quantity'], key: 'stock', align: 'center' as 'center', sorter: (a: ProductListData, b: ProductListData) => (a.inventoryItem?.quantity ?? 0) - (b.inventoryItem?.quantity ?? 0) },
-    { title: 'Price', dataIndex: 'price', key: 'price', align: 'right' as 'right', render: (price: number) => `$${price.toFixed(2)}`, sorter: (a: { price: number; }, b: { price: number; }) => a.price - b.price },
+    // Corrected 'Base Price' column with explicit logic
+          {
+                title: 'Base Price',
+                key: 'basePrice',
+                align: 'right' as 'right',
+                sorter: (a: ProductListData, b: ProductListData) => a.price - b.price,
+                render: (_: any, record: ProductListData) => {
+                  let basePrice: number;
+
+                  const totalTaxRate = record.taxes?.reduce((sum, tax) => sum + tax.rate, 0) || 0;
+
+                  if (pricesEnteredWithTax) {
+                    // Avoid division by 0
+                    if (totalTaxRate > 0) {
+                      basePrice = record.price / (1 + totalTaxRate / 100);
+                    } else {
+                      basePrice = record.price;
+                    }
+                  } else {
+                    basePrice = record.price;
+                  }
+
+                  // Round properly
+                  return `${currencySymbol}${basePrice.toFixed(2)}`;
+                }
+              }
+      ,
+    {
+        title: 'Taxes',
+        dataIndex: 'taxes',
+        key: 'taxes',
+        render: (taxes: TaxInfo[]) => (
+            <Space direction="vertical" size="small">
+                {taxes && taxes.length > 0 ? (
+                    taxes.map(tax => <Tag key={tax.id}>{tax.name} ({tax.rate}%)</Tag>)
+                ) : (
+                    <Text type="secondary">None</Text>
+                )}
+            </Space>
+        )
+    },
+    {
+          title: 'Price (inc. Tax)',
+          key: 'totalPrice',
+          align: 'right' as 'right',
+          render: (_: any, record: ProductListData) => {
+            let finalPrice: number;
+
+            const totalTaxRate = record.taxes?.reduce((sum, tax) => sum + tax.rate, 0) || 0;
+
+            if (pricesEnteredWithTax) {
+              finalPrice = record.price;
+            } else {
+              finalPrice = record.price * (1 + totalTaxRate / 100);
+            }
+
+            return <Text strong>{currencySymbol}{finalPrice.toFixed(2)}</Text>;
+          }
+        },
     {
       title: 'Actions',
       key: 'actions',
@@ -133,7 +209,6 @@ const ProductListPage: React.FC = () => {
         </Button>
       </div>
 
-      {/* 👇 New Search Input */}
       <Card style={{ marginBottom: 16 }}>
         <Input
           placeholder="Search by name, SKU, or category..."
@@ -146,7 +221,7 @@ const ProductListPage: React.FC = () => {
 
       <Table
         columns={columns}
-        dataSource={filteredProducts} // 👈 Use the filtered list
+        dataSource={filteredProducts}
         loading={loading}
         rowKey="id"
         pagination={{ pageSize: 10, showSizeChanger: true }}

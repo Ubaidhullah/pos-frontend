@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery } from '@apollo/client';
 import {
@@ -31,6 +31,8 @@ import { useAuth } from '../../contexts/AuthContext';
 import { Role } from '../../common/enums/role.enum';
 import UpdatePOStatusModal from './UpdatePOStatusModal';
 import ReceivePOItemsModal from './ReceivePOItemsModal';
+import { GET_SETTINGS } from '../../apollo/queries/settingsQueries';
+
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -68,6 +70,11 @@ interface PurchaseOrderFullDetail {
   }[];
 }
 
+interface SettingsInfo {
+  displayCurrency?: string;
+  baseCurrency?: string;
+}
+
 const PurchaseOrderDetailPage: React.FC = () => {
   const { id: poId } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -83,7 +90,11 @@ const PurchaseOrderDetailPage: React.FC = () => {
 
   const [isUpdateStatusModalOpen, setIsUpdateStatusModalOpen] = useState(false);
   const [isReceiveItemsModalOpen, setIsReceiveItemsModalOpen] = useState(false);
-
+  const { data: settingsData } = useQuery<{ settings: SettingsInfo }>(GET_SETTINGS);
+  
+  const currencySymbol = useMemo(() => {
+            return settingsData?.settings.displayCurrency || settingsData?.settings.baseCurrency || '$';
+          }, [settingsData]);
   if (loading) return <div style={{ textAlign: 'center', padding: '50px' }}><Spin size="large" /></div>;
   if (error) return <Alert message="Error Loading Purchase Order" description={error.message} type="error" showIcon />;
 
@@ -123,13 +134,13 @@ const PurchaseOrderDetailPage: React.FC = () => {
     { title: 'SKU', dataIndex: ['product', 'sku'], key: 'sku' },
     { title: 'Ordered', dataIndex: 'quantityOrdered', key: 'qtyOrdered', align: 'right' as 'right' },
     { title: 'Received', dataIndex: 'quantityReceived', key: 'qtyReceived', align: 'right' as 'right' },
-    { title: 'Unit Cost', dataIndex: 'unitCost', key: 'unitCost', align: 'right' as 'right', render: (cost: number) => `$${cost.toFixed(2)}` },
+    { title: 'Unit Cost', dataIndex: 'unitCost', key: 'unitCost', align: 'right' as 'right', render: (cost: number) => `${currencySymbol}${cost.toFixed(2)}` },
     { title: 'Item Total', dataIndex: 'totalCost', key: 'itemTotal', align: 'right' as 'right', render: (total: number) => `$${total.toFixed(2)}` },
   ];
 
   const landedCostColumns = [
       { title: 'Cost Name', dataIndex: 'name', key: 'name' },
-      { title: 'Amount', dataIndex: 'amount', key: 'amount', align: 'right' as 'right', render: (amount: number) => `$${amount.toFixed(2)}` }
+      { title: 'Amount', dataIndex: 'amount', key: 'amount', align: 'right' as 'right', render: (amount: number) => `${currencySymbol}${amount.toFixed(2)}` }
   ];
 
   return (
@@ -218,17 +229,17 @@ const PurchaseOrderDetailPage: React.FC = () => {
               <Table.Summary fixed>
                 <Table.Summary.Row>
                   <Table.Summary.Cell index={0} colSpan={6} align="right"><Text strong>Subtotal (Items):</Text></Table.Summary.Cell>
-                  <Table.Summary.Cell index={1} align="right"><Text strong>${subTotalItems.toFixed(2)}</Text></Table.Summary.Cell>
+                  <Table.Summary.Cell index={1} align="right"><Text strong>{currencySymbol}{subTotalItems.toFixed(2)}</Text></Table.Summary.Cell>
                 </Table.Summary.Row>
                  { (po.taxes !== null && po.taxes !== undefined && po.taxes > 0) &&
                     <Table.Summary.Row>
                         <Table.Summary.Cell index={0} colSpan={6} align="right"><Text>Taxes:</Text></Table.Summary.Cell>
-                        <Table.Summary.Cell index={1} align="right"><Text>${(po.taxes || 0).toFixed(2)}</Text></Table.Summary.Cell>
+                        <Table.Summary.Cell index={1} align="right"><Text>{currencySymbol}{(po.taxes || 0).toFixed(2)}</Text></Table.Summary.Cell>
                     </Table.Summary.Row>
                 }
                 <Table.Summary.Row style={{background: '#fafafa'}}>
                   <Table.Summary.Cell index={0} colSpan={6} align="right"><Title level={5} style={{margin:0}}>Grand Total:</Title></Table.Summary.Cell>
-                  <Table.Summary.Cell index={1} align="right"><Title level={5} style={{margin:0}}>${po.totalAmount.toFixed(2)}</Title></Table.Summary.Cell>
+                  <Table.Summary.Cell index={1} align="right"><Title level={5} style={{margin:0}}>{currencySymbol}{po.totalAmount.toFixed(2)}</Title></Table.Summary.Cell>
                 </Table.Summary.Row>
               </Table.Summary>
             )}
@@ -251,9 +262,9 @@ const PurchaseOrderDetailPage: React.FC = () => {
             <Col xs={24} md={12}>
                 <Card title="Financial Summary">
                     <Descriptions column={1} layout="horizontal" bordered size="small">
-                        <Descriptions.Item label="Items Subtotal">${subTotalItems.toFixed(2)}</Descriptions.Item>
-                        <Descriptions.Item label="Total Landed Costs">${totalLandedCosts.toFixed(2)}</Descriptions.Item>
-                        <Descriptions.Item label={<Text strong>Grand Total</Text>}><Text strong>${po.totalAmount.toFixed(2)}</Text></Descriptions.Item>
+                        <Descriptions.Item label="Items Subtotal">{currencySymbol}{subTotalItems.toFixed(2)}</Descriptions.Item>
+                        <Descriptions.Item label="Total Landed Costs">{currencySymbol}{totalLandedCosts.toFixed(2)}</Descriptions.Item>
+                        <Descriptions.Item label={<Text strong>Grand Total</Text>}><Text strong>{currencySymbol}{po.totalAmount.toFixed(2)}</Text></Descriptions.Item>
                     </Descriptions>
                 </Card>
             </Col>

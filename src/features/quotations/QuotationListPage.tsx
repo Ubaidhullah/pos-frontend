@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useQuery, useMutation } from '@apollo/client';
 import { Table, Button, Space, Tag, message, Tooltip, Typography, Select, Card, Row, Col } from 'antd';
 import { PlusOutlined, EyeOutlined, CheckCircleOutlined, SyncOutlined, EditOutlined } from '@ant-design/icons';
@@ -10,6 +10,8 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useAntdNotice } from '../../contexts/AntdNoticeContext';
 import { Role } from '../../common/enums/role.enum';
 import { QuotationStatus } from '../../common/enums/quotation-status.enum'; // Create this frontend enum
+import { GET_SETTINGS } from '../../apollo/queries/settingsQueries';
+
 
 const { Title } = Typography;
 const { Option } = Select;
@@ -23,6 +25,11 @@ interface QuotationData {
     customer?: { name: string };
 }
 
+interface SettingsInfo {
+  displayCurrency?: string;
+  baseCurrency?: string;
+}
+
 const QuotationListPage: React.FC = () => {
     const navigate = useNavigate();
     const { messageApi } = useAntdNotice();
@@ -31,11 +38,16 @@ const QuotationListPage: React.FC = () => {
     const { data, loading, error, refetch } = useQuery<{ quotations: QuotationData[] }>(GET_QUOTATIONS, {
         variables: { filters },
     });
+    const { data: settingsData } = useQuery<{ settings: SettingsInfo }>(GET_SETTINGS);
 
     const [updateStatus, { loading: updateStatusLoading }] = useMutation(UPDATE_QUOTATION_STATUS, {
         onCompleted: () => { messageApi.success("Quotation status updated."); refetch(); },
         onError: (err) => messageApi.error(err.message),
     });
+
+    const currencySymbol = useMemo(() => {
+        return settingsData?.settings.displayCurrency || settingsData?.settings.baseCurrency || '$';
+      }, [settingsData]);
 
     const [createOrder, { loading: createOrderLoading }] = useMutation(CREATE_ORDER_FROM_QUOTATION, {
         onCompleted: (data) => {
@@ -78,7 +90,7 @@ const QuotationListPage: React.FC = () => {
         { title: 'Customer', dataIndex: ['customer', 'name'], key: 'customer', render: (name: any) => name || 'N/A' },
         { title: 'Valid Until', dataIndex: 'validUntil', key: 'validUntil', render: (date: string | number | Date | dayjs.Dayjs | null | undefined) => dayjs(date).format('YYYY-MM-DD') },
         { title: 'Status', dataIndex: 'status', key: 'status', render: (status: QuotationStatus) => <Tag color={statusColors[status]}>{status}</Tag> },
-        { title: 'Total', dataIndex: 'grandTotal', key: 'grandTotal', render: (total: number) => `$${total.toFixed(2)}`, align: 'right' as const },
+        { title: 'Total', dataIndex: 'grandTotal', key: 'grandTotal', render: (total: number) => `${currencySymbol}${total.toFixed(2)}`, align: 'right' as const },
         {
             title: 'Actions', key: 'actions',
             render: (_: any, record: QuotationData) => (

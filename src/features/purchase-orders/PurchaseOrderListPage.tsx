@@ -1,17 +1,16 @@
-import React, { useState, useEffect } from 'react';
-import { useQuery, useMutation } from '@apollo/client';
-import { Table, Button, Space, Tag, message, Tooltip, Typography, DatePicker, Select, Input, Card, Row, Col } from 'antd';
-import { PlusOutlined, EditOutlined, EyeOutlined, DeliveredProcedureOutlined, CheckCircleOutlined, CloseCircleOutlined, FilterOutlined, ReloadOutlined } from '@ant-design/icons';
+import React, { useState,  useMemo } from 'react';
+import { useQuery } from '@apollo/client';
+import { Table, Button, Space, Tag, message, Tooltip, Typography, DatePicker, Select,  Card, Row, Col } from 'antd';
+import { PlusOutlined, EditOutlined, EyeOutlined, DeliveredProcedureOutlined, CheckCircleOutlined,  FilterOutlined, ReloadOutlined } from '@ant-design/icons';
 import moment from 'moment';
-import type { Moment } from 'moment';
 import { Link, useNavigate } from 'react-router-dom';
 import { GET_PURCHASE_ORDERS } from '../../apollo/queries/purchaseOrderQueries';
 import { GET_SUPPLIERS } from '../../apollo/queries/supplierQueries'; // For supplier filter
 import { useAuth } from '../../contexts/AuthContext';
 import { Role } from '../../common/enums/role.enum';
 import { PurchaseOrderStatus } from '../../common/enums/purchase-order-status.enum'; // Frontend enum
-import dayjs, { Dayjs } from 'dayjs';
-
+import { Dayjs } from 'dayjs';
+import { GET_SETTINGS } from '../../apollo/queries/settingsQueries';
 // Import Modals (we'll create these later)
 import UpdatePOStatusModal from './UpdatePOStatusModal';
 import ReceivePOItemsModal from './ReceivePOItemsModal';
@@ -41,6 +40,11 @@ interface PurchaseOrderData {
   createdAt: string;
 }
 
+interface SettingsInfo {
+  displayCurrency?: string;
+  baseCurrency?: string;
+}
+
 const PurchaseOrderListPage: React.FC = () => {
   const navigate = useNavigate();
   const { hasRole } = useAuth();
@@ -52,7 +56,7 @@ const PurchaseOrderListPage: React.FC = () => {
   }>({});
 
   const { data: suppliersData, loading: suppliersLoading } = useQuery<{ suppliers: SupplierInfo[] }>(GET_SUPPLIERS);
-
+  const { data: settingsData } = useQuery<{ settings: SettingsInfo }>(GET_SETTINGS);
   const { data, loading, error, refetch } = useQuery<{ purchaseOrders: PurchaseOrderData[] }>(GET_PURCHASE_ORDERS, {
     variables: {
       supplierId: filters.supplierId,
@@ -69,6 +73,11 @@ const PurchaseOrderListPage: React.FC = () => {
   const [selectedPOForAction, setSelectedPOForAction] = useState<PurchaseOrderData | null>(null);
 
 
+  const currencySymbol = useMemo(() => {
+          return settingsData?.settings.displayCurrency || settingsData?.settings.baseCurrency || '$';
+        }, [settingsData]);
+
+        
   const handleFilterChange = (filterName: string, value: any) => {
     setFilters(prev => ({ ...prev, [filterName]: value }));
   };
@@ -109,7 +118,7 @@ const PurchaseOrderListPage: React.FC = () => {
     { title: 'Order Date', dataIndex: 'orderDate', key: 'orderDate', render: (date: string) => moment(date).format('YYYY-MM-DD'), sorter: (a: PurchaseOrderData, b: PurchaseOrderData) => moment(a.orderDate).unix() - moment(b.orderDate).unix() },
     { title: 'Expected Delivery', dataIndex: 'expectedDeliveryDate', key: 'expectedDeliveryDate', render: (date?: string) => date ? moment(date).format('YYYY-MM-DD') : 'N/A' },
     { title: 'Status', dataIndex: 'status', key: 'status', render: (status: PurchaseOrderStatus) => <Tag color={statusColors[status] || 'default'}>{status.replace('_', ' ')}</Tag> },
-    { title: 'Total Amount', dataIndex: 'totalAmount', key: 'totalAmount', render: (amount: number) => `$${amount.toFixed(2)}`, sorter: (a: PurchaseOrderData, b: PurchaseOrderData) => a.totalAmount - b.totalAmount },
+    { title: 'Total Amount', dataIndex: 'totalAmount', key: 'totalAmount', render: (amount: number) => `${currencySymbol}${amount.toFixed(2)}`, sorter: (a: PurchaseOrderData, b: PurchaseOrderData) => a.totalAmount - b.totalAmount },
     {
       title: 'Actions',
       key: 'actions',

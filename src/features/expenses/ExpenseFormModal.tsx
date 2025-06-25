@@ -1,9 +1,10 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { Modal, Form, Input, Button, message, DatePicker, Select, InputNumber } from 'antd';
 import { useQuery, useMutation } from '@apollo/client';
 import { CREATE_EXPENSE, UPDATE_EXPENSE } from '../../apollo/mutations/expenseMutations';
 import { GET_EXPENSE_CATEGORIES, GET_EXPENSES } from '../../apollo/queries/expenseQueries';
 import moment, { type Moment } from 'moment';
+import {GET_SETTINGS} from '../../apollo/queries/settingsQueries'
 import { useAntdNotice } from '../../contexts/AntdNoticeContext';
 
 
@@ -32,13 +33,23 @@ interface ExpenseFormModalProps {
   currentFilters?: { categoryId?: string; dateRange?: [Moment | null, Moment | null] };
 }
 
+interface SettingsData {
+    displayCurrency?: string;
+    baseCurrency?: string;
+}
+
 const ExpenseFormModal: React.FC<ExpenseFormModalProps> = ({ open, onClose, expenseToEdit, currentFilters }) => {
   const [form] = Form.useForm<ExpenseFormData>();
 
   const { data: categoriesData, loading: categoriesLoading } = useQuery<{ expenseCategories: CategoryInfo[] }>(GET_EXPENSE_CATEGORIES);
   const [createExpense, { loading: createLoading }] = useMutation(CREATE_EXPENSE);
   const [updateExpense, { loading: updateLoading }] = useMutation(UPDATE_EXPENSE);
+   const { data: settingsData } = useQuery<{ settings: SettingsData }>(GET_SETTINGS);
   const { messageApi } = useAntdNotice();
+
+  const currencySymbol = useMemo(() => {
+      return settingsData?.settings.displayCurrency || settingsData?.settings.baseCurrency || '$';
+    }, [settingsData]);
 
   useEffect(() => {
     if (open) {
@@ -109,7 +120,7 @@ const ExpenseFormModal: React.FC<ExpenseFormModalProps> = ({ open, onClose, expe
           <Input placeholder="e.g., Monthly Office Rent" />
         </Form.Item>
         <Form.Item name="amount" label="Amount" rules={[{ required: true }, { type: 'number', min: 0.01 }]}>
-          <InputNumber addonBefore="$" style={{ width: '100%' }} min={0.01} precision={2} />
+          <InputNumber addonBefore={currencySymbol} style={{ width: '100%' }} min={0.01} precision={2} />
         </Form.Item>
         <Form.Item name="expenseDate" label="Expense Date" rules={[{ required: true }]}>
           <DatePicker style={{ width: '100%' }} format="YYYY-MM-DD" />

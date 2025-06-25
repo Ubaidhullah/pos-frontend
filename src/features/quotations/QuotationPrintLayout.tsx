@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import dayjs from 'dayjs';
 import { useQuery } from '@apollo/client';
 import { GET_SETTINGS } from '../../apollo/queries/settingsQueries';
@@ -11,8 +11,9 @@ interface SettingsData {
   phone?: string;
   receiptShowLogo?: boolean; 
   receiptHeader?: string;   
-  receiptFooter?: string;    
-
+  receiptFooter?: string;   
+  displayCurrency?: string;
+  baseCurrency?: string; 
 }
 
 interface QuotationData {
@@ -40,6 +41,10 @@ interface QuotationPrintLayoutProps {
 const QuotationPrintLayout: React.FC<QuotationPrintLayoutProps> = ({ quote }) => {
   const { data: settingsData } = useQuery<{ settings: SettingsData }>(GET_SETTINGS);
   const settings = settingsData?.settings;
+
+  const currencySymbol = useMemo(() => {
+          return settingsData?.settings.displayCurrency || settingsData?.settings.baseCurrency || '$';
+        }, [settingsData]);
 
   if (!quote) return null;
 
@@ -86,8 +91,8 @@ const QuotationPrintLayout: React.FC<QuotationPrintLayoutProps> = ({ quote }) =>
               <td>{index + 1}</td>
               <td>{item.description}</td>
               <td className="col-qty">{item.quantity}</td>
-              <td className="col-price">${item.unitPrice.toFixed(2)}</td>
-              <td className="col-total">${item.lineTotal.toFixed(2)}</td>
+              <td className="col-price">{currencySymbol}{item.unitPrice.toFixed(2)}</td>
+              <td className="col-total">{currencySymbol}{item.lineTotal.toFixed(2)}</td>
             </tr>
           ))}
         </tbody>
@@ -98,19 +103,19 @@ const QuotationPrintLayout: React.FC<QuotationPrintLayoutProps> = ({ quote }) =>
             <tbody>
                 <tr>
                     <td className="summary-label">Subtotal:</td>
-                    <td className="summary-value">${quote.subTotal.toFixed(2)}</td>
+                    <td className="summary-value">{currencySymbol}{quote.subTotal.toFixed(2)}</td>
                 </tr>
                 <tr>
                     <td className="summary-label">Discount:</td>
-                    <td className="summary-value">-${quote.discountAmount.toFixed(2)}</td>
+                    <td className="summary-value">-{currencySymbol}{quote.discountAmount.toFixed(2)}</td>
                 </tr>
                 <tr>
                     <td className="summary-label">Tax:</td>
-                    <td className="summary-value">${quote.taxAmount.toFixed(2)}</td>
+                    <td className="summary-value">{currencySymbol}{quote.taxAmount.toFixed(2)}</td>
                 </tr>
                 <tr className="grand-total">
                     <td className="summary-label">Grand Total:</td>
-                    <td className="summary-value">${quote.grandTotal.toFixed(2)}</td>
+                    <td className="summary-value">{currencySymbol}{quote.grandTotal.toFixed(2)}</td>
                 </tr>
             </tbody>
         </table>

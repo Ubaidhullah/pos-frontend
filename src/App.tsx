@@ -33,6 +33,7 @@ import QuotationListPage from './features/quotations/QuotationListPage';
 import QuotationFormPage from './features/quotations/QuotationFormPage';
 import QuotationDetailPage from './features/quotations/QuotationDetailPage';
 import ReportingCenterPage from './features/reporting/ReportingCenterPage';
+import ProductAndCategoryPage from './features/products/ProductAndCategoryPage';
 
 const AppRoutes: React.FC = () => {
   const { isAuthenticated, isLoading } = useAuth();
@@ -70,6 +71,7 @@ const AppRoutes: React.FC = () => {
           
           {/* Role Protected Routes */}
           <Route element={<ProtectedRoute allowedRoles={[Role.ADMIN, Role.MANAGER]} />}>
+            <Route path="admin/productspage" element={<ProductAndCategoryPage />} />
             <Route path="admin/products" element={<ProductListPage />} />
             <Route path="admin/categories" element={<CategoryListPage />} />
             <Route path="admin/inventory" element={<InventoryPage />} />
