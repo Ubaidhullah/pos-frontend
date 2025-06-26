@@ -1,17 +1,20 @@
 import React from 'react';
 import { Card, Tabs, Typography } from 'antd';
 import { AppstoreOutlined, UnorderedListOutlined } from '@ant-design/icons';
-import ProductListPage from './ProductListPage'; // Assuming this is the path
-import CategoryListPage from '../categories/CategoryListPage'; // Assuming this is the path
+import ProductListPage from './ProductListPage';
+import CategoryListPage from '../categories/CategoryListPage';
 
 const { Title } = Typography;
 const { TabPane } = Tabs;
 
 const ProductAndCategoryPage: React.FC = () => {
   return (
-    <div>      
-        <Card>
-        <Tabs defaultActiveKey="1">
+    <div>
+      <Title level={2} style={{ marginBottom: 24 }}>
+        Products & Categories
+      </Title>
+      <Card>
+        <Tabs defaultActiveKey="1" type="card">
           <TabPane
             tab={
               <span>

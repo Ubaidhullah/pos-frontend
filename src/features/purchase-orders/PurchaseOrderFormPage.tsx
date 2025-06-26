@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useLazyQuery, useMutation } from '@apollo/client';
 import {
   Form, Input, InputNumber, Button, Select, DatePicker, Space, Card, Row, Col, Typography,
-  Divider, message, Spin, Empty, Alert
+  Divider, message, Spin, Empty, Alert, Grid
 } from 'antd';
 import { PlusOutlined, DeleteOutlined, SaveOutlined, ArrowLeftOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
@@ -11,7 +11,7 @@ import dayjs from 'dayjs';
 // --- Local Imports ---
 import { GET_SUPPLIERS } from '../../apollo/queries/supplierQueries';
 import { GET_PRODUCTS } from '../../apollo/queries/productQueries';
-import { GET_PURCHASE_ORDER_BY_ID, GET_PURCHASE_ORDERS } from '../../apollo/queries/purchaseOrderQueries'; // <-- Import GET_PURCHASE_ORDERS
+import { GET_PURCHASE_ORDER_BY_ID, GET_PURCHASE_ORDERS } from '../../apollo/queries/purchaseOrderQueries';
 import { CREATE_PURCHASE_ORDER, UPDATE_DRAFT_PURCHASE_ORDER } from '../../apollo/mutations/purchaseOrderMutations';
 import { PurchaseOrderStatus } from '../../common/enums/purchase-order-status.enum';
 import { useAuth } from '../../contexts/AuthContext';
@@ -26,6 +26,7 @@ import ProductFormModal, { type ProductToEdit } from '../products/ProductForm';
 const { Title, Text } = Typography;
 const { Option } = Select;
 const { TextArea } = Input;
+const { useBreakpoint } = Grid;
 
 // --- Interfaces for Form Data ---
 interface SupplierInfo { id: string; name: string; }
@@ -50,19 +51,18 @@ const PurchaseOrderFormPage: React.FC = () => {
   const { id: poId } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [form] = Form.useForm<PurchaseOrderFormValues>();
-  const { hasRole, user: currentUser } = useAuth();
+  const { hasRole } = useAuth();
   const { messageApi } = useAntdNotice();
+  const screens = useBreakpoint();
 
   const isEditMode = !!poId;
   const [currentPoStatus, setCurrentPoStatus] = useState<PurchaseOrderStatus | null>(null);
   const [overallTotal, setOverallTotal] = useState<number>(0);
   const { data: settingsData } = useQuery<{ settings: SettingsInfo }>(GET_SETTINGS);
   
-  // --- State for Modals ---
   const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false);
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
 
-  // --- Data Fetching ---
   const { data: suppliersData, loading: suppliersLoading, refetch: refetchSuppliers } = useQuery<{ suppliers: SupplierInfo[] }>(GET_SUPPLIERS);
   const { data: productsData, loading: productsLoading, refetch: refetchProducts } = useQuery<{ products: ProductInfo[] }>(GET_PRODUCTS);
   const [fetchPO, { data: poData, loading: poLoading, error: poError }] = useLazyQuery(GET_PURCHASE_ORDER_BY_ID);
@@ -70,52 +70,69 @@ const PurchaseOrderFormPage: React.FC = () => {
   const currencySymbol = useMemo(() => {
           return settingsData?.settings.displayCurrency || settingsData?.settings.baseCurrency || '$';
         }, [settingsData]);
-  // --- Mutations ---
+
   const [createPO, { loading: createLoading }] = useMutation(CREATE_PURCHASE_ORDER);
   const [updateDraftPO, { loading: updateLoading }] = useMutation(UPDATE_DRAFT_PURCHASE_ORDER);
 
-  // --- Effects and Callbacks ---
   useEffect(() => { if (isEditMode && poId) fetchPO({ variables: { id: poId } }); }, [isEditMode, poId, fetchPO]);
+
+  // --- FIX: The `calculateOverallTotal` function is now more robust. ---
+  // It ensures that `items` and `landingCosts` are always treated as arrays, preventing the .reduce() error.
+  const calculateOverallTotal = useCallback((items: any, landingCosts: any) => {
+    const safeItems = Array.isArray(items) ? items : [];
+    const safeLandingCosts = Array.isArray(landingCosts) ? landingCosts : [];
+
+    const itemsTotal = safeItems.reduce((sum, item) => sum + (Number(item?.quantityOrdered) || 0) * (Number(item?.unitCost) || 0), 0);
+    const landedCostsTotal = safeLandingCosts.reduce((sum, cost) => sum + (Number(cost?.amount) || 0), 0);
+    
+    setOverallTotal(itemsTotal + landedCostsTotal);
+  }, []);
 
   useEffect(() => {
     if (isEditMode && poData?.purchaseOrder) {
       const { purchaseOrder } = poData;
       setCurrentPoStatus(purchaseOrder.status as PurchaseOrderStatus);
-      form.setFieldsValue({
+      
+      // --- FIX: Logic to safely parse landingCosts from a string if necessary ---
+      let parsedLandingCosts = [];
+      if (typeof purchaseOrder.landingCosts === 'string') {
+        try {
+          parsedLandingCosts = JSON.parse(purchaseOrder.landingCosts);
+        } catch (e) {
+          console.error("Failed to parse landingCosts JSON string:", e);
+          // Keep it as an empty array if parsing fails
+        }
+      } else if (Array.isArray(purchaseOrder.landingCosts)) {
+        parsedLandingCosts = purchaseOrder.landingCosts;
+      }
+
+      const formData = {
         ...purchaseOrder,
         orderDate: dayjs(purchaseOrder.orderDate),
         expectedDeliveryDate: purchaseOrder.expectedDeliveryDate ? dayjs(purchaseOrder.expectedDeliveryDate) : undefined,
         items: purchaseOrder.items.map((item: any) => ({ productId: item.productId, quantityOrdered: item.quantityOrdered, unitCost: item.unitCost })),
-        landingCosts: purchaseOrder.landingCosts || [],
-      });
-    } else if (!isEditMode) {
-      form.setFieldsValue({
-        orderDate: dayjs(),
-        items: [{ productId: undefined, quantityOrdered: 1, unitCost: 0 }],
-        landingCosts: [],
-      });
-    }
-  }, [isEditMode, poData, form]);
+        landingCosts: parsedLandingCosts,
+      };
 
-  const calculateOverallTotal = useCallback((items: any[] = [], landingCosts: any[] = []) => {
-    const itemsTotal = items.reduce((sum, item) => sum + (Number(item?.quantityOrdered) || 0) * (Number(item?.unitCost) || 0), 0);
-    const landedCostsTotal = landingCosts.reduce((sum, cost) => sum + (Number(cost?.amount) || 0), 0);
-    setOverallTotal(itemsTotal + landedCostsTotal);
-  }, []);
+      form.setFieldsValue(formData);
+      calculateOverallTotal(formData.items, formData.landingCosts);
+    } else if (!isEditMode) {
+      const initialValues = { orderDate: dayjs(), items: [{ productId: undefined, quantityOrdered: 1, unitCost: 0 }], landingCosts: [] };
+      form.setFieldsValue(initialValues);
+      calculateOverallTotal(initialValues.items, initialValues.landingCosts);
+    }
+  }, [isEditMode, poData, form, calculateOverallTotal]);
 
   const handleFormValuesChange = (_: any, allValues: PurchaseOrderFormValues) => {
     calculateOverallTotal(allValues.items, allValues.landingCosts);
   };
 
-  // --- Form Submission ---
   const onFinish = async (values: PurchaseOrderFormValues) => {
     if (isEditMode && currentPoStatus !== PurchaseOrderStatus.DRAFT) {
         messageApi.error(`Only DRAFT POs can be modified.`);
         return;
     }
-
     const submissionInput = {
-      poNumber: isEditMode ? poData?.purchaseOrder.poNumber : undefined,
       supplierId: values.supplierId,
       orderDate: values.orderDate?.toISOString(),
       expectedDeliveryDate: values.expectedDeliveryDate?.toISOString(),
@@ -127,23 +144,14 @@ const PurchaseOrderFormPage: React.FC = () => {
       })),
       landingCosts: values.landingCosts?.filter(cost => cost.name && (cost.amount || 0) > 0) || [],
     };
-
     if (submissionInput.items.length === 0) { messageApi.error('A PO must have at least one valid item.'); return; }
 
     try {
       if (isEditMode && poId) {
-        // When updating, we only need to refetch the specific PO details, not the whole list
-        await updateDraftPO({ 
-            variables: { id: poId, updatePurchaseOrderInput: submissionInput },
-            refetchQueries: [{ query: GET_PURCHASE_ORDER_BY_ID, variables: { id: poId } }]
-        });
+        await updateDraftPO({ variables: { id: poId, updatePurchaseOrderInput: submissionInput }, refetchQueries: [{ query: GET_PURCHASE_ORDER_BY_ID, variables: { id: poId } }] });
         messageApi.success('Purchase Order updated successfully!');
       } else {
-        // --- FIX: Add refetchQueries to the create mutation ---
-        const result = await createPO({ 
-            variables: { createPurchaseOrderInput: submissionInput },
-            refetchQueries: [{ query: GET_PURCHASE_ORDERS }] // This tells Apollo to re-run the main list query
-        });
+        const result = await createPO({ variables: { createPurchaseOrderInput: submissionInput }, refetchQueries: [{ query: GET_PURCHASE_ORDERS }] });
         messageApi.success(`Purchase Order ${result.data?.createPurchaseOrder?.poNumber || ''} created successfully!`);
       }
       navigate('/admin/purchase-orders');
@@ -160,28 +168,21 @@ const PurchaseOrderFormPage: React.FC = () => {
 
   return (
     <>
-      <div style={{ padding: '24px' }}>
+      <div style={{ padding: screens.md ? '24px' : '12px' }}>
         <Space style={{ marginBottom: 24 }}><Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/admin/purchase-orders')}>Back to List</Button><Title level={2} style={{ margin: 0 }}>{isEditMode ? `Edit Purchase Order` : 'Create New Purchase Order'}</Title></Space>
         
         <Form form={form} layout="vertical" onFinish={onFinish} onValuesChange={handleFormValuesChange}>
           <Card title="PO Details">
-            <Row gutter={16}>
+            <Row gutter={[16, 16]}>
               <Col xs={24} md={12}>
                 <Form.Item name="supplierId" label="Supplier" rules={[{ required: true }]}>
-                  <Select
-                    showSearch placeholder="Select a supplier" loading={suppliersLoading} disabled={formIsDisabled}
-                    dropdownRender={(menu) => (
-                      <> {menu} <Divider style={{ margin: '8px 0' }} />
-                        <Button type="link" icon={<PlusOutlined />} onClick={() => setIsSupplierModalOpen(true)}>Create New Supplier</Button>
-                      </>
-                    )}
-                  >
+                  <Select showSearch placeholder="Select a supplier" loading={suppliersLoading} disabled={formIsDisabled} dropdownRender={(menu) => ( <> {menu} <Divider style={{ margin: '8px 0' }} /> <Button type="link" icon={<PlusOutlined />} onClick={() => setIsSupplierModalOpen(true)}>Create New Supplier</Button> </> )}>
                     {suppliersData?.suppliers.map(s => <Option key={s.id} value={s.id}>{s.name}</Option>)}
                   </Select>
                 </Form.Item>
               </Col>
-              <Col xs={24} md={12}><Form.Item name="orderDate" label="Order Date" rules={[{ required: true }]}><DatePicker style={{ width: '100%' }} format="YYYY-MM-DD" disabled={formIsDisabled} /></Form.Item></Col>
-              <Col xs={24} md={12}><Form.Item name="expectedDeliveryDate" label="Expected Delivery Date"><DatePicker style={{ width: '100%' }} format="YYYY-MM-DD" disabled={formIsDisabled} /></Form.Item></Col>
+              <Col xs={24} sm={12}><Form.Item name="orderDate" label="Order Date" rules={[{ required: true }]}><DatePicker style={{ width: '100%' }} format="YYYY-MM-DD" disabled={formIsDisabled} /></Form.Item></Col>
+              <Col xs={24} sm={12}><Form.Item name="expectedDeliveryDate" label="Expected Delivery Date"><DatePicker style={{ width: '100%' }} format="YYYY-MM-DD" disabled={formIsDisabled} /></Form.Item></Col>
               <Col xs={24}><Form.Item name="notes" label="Notes / Remarks"><TextArea rows={2} disabled={formIsDisabled}/></Form.Item></Col>
             </Row>
           </Card>
@@ -191,15 +192,18 @@ const PurchaseOrderFormPage: React.FC = () => {
               {(fields, { add, remove }) => (
                 <>
                   {fields.map(({ key, name, ...restField }, index) => (
-                    <Row key={key} gutter={16} align="bottom" style={{marginBottom: 8}}>
-                      <Col flex="auto"><Form.Item {...restField} name={[name, 'productId']} label={index === 0 ? "Product" : ""} rules={[{ required: true }]}><Select showSearch placeholder="Select product" loading={productsLoading} disabled={formIsDisabled} filterOption={(input, option) => (option?.children as any)?.toLowerCase().includes(input.toLowerCase())}>{productsData?.products.map(p => <Option key={p.id} value={p.id}>{p.name} (SKU: {p.sku || 'N/A'})</Option>)}</Select></Form.Item></Col>
-                      <Col span={4}><Form.Item {...restField} name={[name, 'quantityOrdered']} label={index === 0 ? "Qty" : ""} rules={[{ required: true }]}><InputNumber style={{ width: '100%' }} min={1} disabled={formIsDisabled} /></Form.Item></Col>
-                      <Col span={4}><Form.Item {...restField} name={[name, 'unitCost']} label={index === 0 ? "Unit Cost" : ""} rules={[{ required: true }]}><InputNumber addonBefore={currencySymbol} style={{ width: '100%' }} min={0} precision={2} disabled={formIsDisabled} /></Form.Item></Col>
-                      <Col flex="80px" style={{textAlign: 'right'}}><Form.Item label={index === 0 ? "Subtotal" : ""}><Text strong>{currencySymbol}{((form.getFieldValue(['items', name, 'quantityOrdered']) || 0) * (form.getFieldValue(['items', name, 'unitCost']) || 0)).toFixed(2)}</Text></Form.Item></Col>
-                      <Col flex="32px"><Button type="text" danger onClick={() => remove(name)} icon={<DeleteOutlined />} disabled={formIsDisabled} /></Col>
-                    </Row>
+                    <Card key={key} size="small" style={{ marginBottom: 16, background: '#fafafa' }}
+                        extra={!formIsDisabled && <Button type="text" danger onClick={() => remove(name)} icon={<DeleteOutlined />} />}
+                    >
+                        <Row gutter={[16, 8]}>
+                            <Col xs={24}><Form.Item {...restField} name={[name, 'productId']} label="Product" rules={[{ required: true }]}><Select showSearch placeholder="Select product" loading={productsLoading} disabled={formIsDisabled} filterOption={(input, option) => (option?.children as any)?.toLowerCase().includes(input.toLowerCase())}>{productsData?.products.map(p => <Option key={p.id} value={p.id}>{p.name} (SKU: {p.sku || 'N/A'})</Option>)}</Select></Form.Item></Col>
+                            <Col xs={12} sm={8}><Form.Item {...restField} name={[name, 'quantityOrdered']} label="Qty" rules={[{ required: true }]}><InputNumber style={{ width: '100%' }} min={1} disabled={formIsDisabled} /></Form.Item></Col>
+                            <Col xs={12} sm={8}><Form.Item {...restField} name={[name, 'unitCost']} label="Unit Cost" rules={[{ required: true }]}><InputNumber addonBefore={currencySymbol} style={{ width: '100%' }} min={0} precision={2} disabled={formIsDisabled} /></Form.Item></Col>
+                            <Col xs={24} sm={8}><Form.Item label="Subtotal"><Text strong>{currencySymbol}{((form.getFieldValue(['items', name, 'quantityOrdered']) || 0) * (form.getFieldValue(['items', name, 'unitCost']) || 0)).toFixed(2)}</Text></Form.Item></Col>
+                        </Row>
+                    </Card>
                   ))}
-                  {!formIsDisabled && <><Button type="dashed" onClick={() => add({ quantityOrdered: 1, unitCost: 0 })} block icon={<PlusOutlined />}>Add Item</Button><Button type="link" onClick={() => setIsProductModalOpen(true)} icon={<PlusOutlined />} style={{marginTop: 8}}>Create New Product</Button></>}
+                  {!formIsDisabled && <Space direction={screens.xs ? 'vertical' : 'horizontal'} style={{width: '100%'}}><Button type="dashed" onClick={() => add({ quantityOrdered: 1, unitCost: 0 })} block icon={<PlusOutlined />}>Add Item</Button><Button type="link" onClick={() => setIsProductModalOpen(true)} icon={<PlusOutlined />}>Create New Product</Button></Space>}
                 </>
               )}
             </Form.List>
@@ -210,11 +214,11 @@ const PurchaseOrderFormPage: React.FC = () => {
                 {(fields, { add, remove }) => (
                   <>
                     {fields.map(({ key, name, ...restField }) => (
-                      <Space key={key} align="baseline" wrap>
-                        <Form.Item {...restField} name={[name, 'name']} rules={[{ required: true }]}><Input placeholder="Cost Name (e.g., Shipping)" /></Form.Item>
-                        <Form.Item {...restField} name={[name, 'amount']} rules={[{ required: true }]}><InputNumber addonBefore={currencySymbol} min={0} placeholder="Amount" /></Form.Item>
-                        <DeleteOutlined onClick={() => remove(name)} />
-                      </Space>
+                      <Row key={key} gutter={[16, 8]} align="bottom" style={{ marginBottom: 8 }}>
+                        <Col xs={24} sm={12}><Form.Item {...restField} name={[name, 'name']} rules={[{ required: true }]}><Input placeholder="Cost Name (e.g., Shipping)" disabled={formIsDisabled} /></Form.Item></Col>
+                        <Col xs={18} sm={8}><Form.Item {...restField} name={[name, 'amount']} rules={[{ required: true }]}><InputNumber addonBefore={currencySymbol} min={0} placeholder="Amount" style={{ width: '100%' }} disabled={formIsDisabled} /></Form.Item></Col>
+                        <Col xs={6} sm={4}><Button type="text" danger onClick={() => remove(name)} icon={<DeleteOutlined />} disabled={formIsDisabled} /></Col>
+                      </Row>
                     ))}
                     {!formIsDisabled && <Button type="dashed" onClick={() => add({ name: '', amount: 0 })} block icon={<PlusOutlined />}>Add Landing Cost</Button>}
                   </>
@@ -233,25 +237,10 @@ const PurchaseOrderFormPage: React.FC = () => {
             </Space>
           </Form.Item>
         </Form>
-    
       </div>
 
-      <SupplierFormModal open={isSupplierModalOpen} onClose={() => setIsSupplierModalOpen(false)}
-        onSuccess={(newSupplierId) => {
-            messageApi.success('New supplier created!');
-            refetchSuppliers().then(() => {
-                form.setFieldsValue({ supplierId: newSupplierId });
-                setIsSupplierModalOpen(false);
-            });
-        }}
-      />
-      <ProductFormModal open={isProductModalOpen} onClose={() => setIsProductModalOpen(false)}
-        onSuccess={() => {
-            messageApi.success('New product created!');
-            refetchProducts(); // Just refetch the list for the user to select
-            setIsProductModalOpen(false);
-        }}
-      />
+      <SupplierFormModal open={isSupplierModalOpen} onClose={() => setIsSupplierModalOpen(false)} onSuccess={(newSupplierId) => { messageApi.success('New supplier created!'); refetchSuppliers().then(() => { form.setFieldsValue({ supplierId: newSupplierId }); setIsSupplierModalOpen(false); }); }} />
+      <ProductFormModal open={isProductModalOpen} onClose={() => setIsProductModalOpen(false)} onSuccess={() => { messageApi.success('New product created!'); refetchProducts(); setIsProductModalOpen(false); }} />
     </>
   );
 };

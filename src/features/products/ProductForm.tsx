@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Modal, Form, Input, Button, message, InputNumber, Select, Row, Col, Divider, Space, Tooltip, Upload,
+  Modal, Form, Input, Button, message, InputNumber, Select, Row, Col, Divider, Space, Grid, Upload,
 } from 'antd';
 import type { UploadFile, UploadProps } from 'antd';
 import { useQuery, useMutation } from '@apollo/client';
@@ -18,6 +18,7 @@ import { GET_SETTINGS } from '../../apollo/queries/settingsQueries';
 
 const { Option } = Select;
 const { TextArea } = Input;
+const { useBreakpoint } = Grid;
 
 // --- Interfaces ---
 interface CategoryInfo { id: string; name: string; }
@@ -69,6 +70,7 @@ const ProductFormModal: React.FC<ProductFormModalProps> = ({ open, onClose, prod
   const [form] = Form.useForm<ProductFormValues>();
   const { messageApi } = useAntdNotice();
   const [fileList, setFileList] = useState<UploadFile[]>([]);
+  const screens = useBreakpoint(); // Hook to get screen size info
 
   // --- GraphQL ---
   const { data: categoriesData, loading: categoriesLoading } = useQuery<{ categories: CategoryInfo[] }>(GET_CATEGORIES);
@@ -76,14 +78,7 @@ const ProductFormModal: React.FC<ProductFormModalProps> = ({ open, onClose, prod
   const { data: settingsData } = useQuery<{ settings: SettingsInfo }>(GET_SETTINGS);
   
   const [uploadImage, { loading: uploadLoading }] = useMutation<{ uploadProductImage: string }, { file: any }>(UPLOAD_PRODUCT_IMAGE);
-  const [createProduct, { loading: createLoading }] = useMutation(CREATE_PRODUCT, {
-      // 👇 Add onCompleted handler
-      onCompleted: (data) => {
-          if (data?.createProduct && onSuccess) {
-              onSuccess(data.createProduct.id); // Pass the new ID back
-          }
-      }
-    });
+  const [createProduct, { loading: createLoading }] = useMutation(CREATE_PRODUCT, { onCompleted: (data) => { if (data?.createProduct && onSuccess) { onSuccess(data.createProduct.id); } } });
   const [updateProduct, { loading: updateLoading }] = useMutation(UPDATE_PRODUCT);
   
   const isEditMode = !!productToEdit;
@@ -93,25 +88,12 @@ const ProductFormModal: React.FC<ProductFormModalProps> = ({ open, onClose, prod
             return settingsData?.settings.displayCurrency || settingsData?.settings.baseCurrency || '$';
           }, [settingsData]);
 
-  // --- Form Setup & Price Logic ---
   useEffect(() => {
     if (open) {
       if (productToEdit) {
-        // When editing, convert the array of URL strings into AntD's UploadFile format
-        const existingImages: UploadFile[] = (productToEdit.imageUrls || []).map((url, index) => ({
-          uid: `${-1 - index}`, // Use a unique negative ID for existing files
-          name: url.split('/').pop() || `image-${index}.png`,
-          status: 'done',
-          url: url,
-          thumbUrl: url,
-        }));
-        
+        const existingImages: UploadFile[] = (productToEdit.imageUrls || []).map((url, index) => ({ uid: `${-1 - index}`, name: url.split('/').pop() || `image-${index}.png`, status: 'done', url: `${import.meta.env.VITE_API_URL}${url}`, thumbUrl: `${import.meta.env.VITE_API_URL}${url}`, }));
         setFileList(existingImages);
-        form.setFieldsValue({
-          ...productToEdit,
-          taxIds: productToEdit.taxes?.map(t => t.id) || [],
-          imageUrls: existingImages,
-        });
+        form.setFieldsValue({ ...productToEdit, taxIds: productToEdit.taxes?.map(t => t.id) || [], imageUrls: existingImages, });
       } else {
         form.resetFields();
         setFileList([]);
@@ -139,48 +121,27 @@ const ProductFormModal: React.FC<ProductFormModalProps> = ({ open, onClose, prod
     }
   };
 
-    const handleCustomRequest = async (options: any) => {
-    const { file, onSuccess, onError } = options;
-    try {
-      const { data } = await uploadImage({ variables: { file } });
-      if (data?.uploadProductImage) {
-        // On success, the response body is the URL string. AntD will attach this to the file object.
-        onSuccess(data.uploadProductImage, file);
-      } else { throw new Error('Image URL not returned from server.'); }
-    } catch (err: any) {
-      onError(err);
-      messageApi.error(`${file.name} upload failed: ${err.message}`);
-    }
-  };
-
-  // --- Custom Upload Handler ---
+  const handleCustomRequest = async (options: any) => { const { file, onSuccess, onError } = options; try { const { data } = await uploadImage({ variables: { file } }); if (data?.uploadProductImage) { onSuccess(data.uploadProductImage, file); } else { throw new Error('Image URL not returned from server.'); } } catch (err: any) { onError(err); messageApi.error(`${file.name} upload failed: ${err.message}`); } };
+  
   const handleUploadChange: UploadProps['onChange'] = ({ file, fileList: newFileList }) => {
-    // When a file is done uploading, its `response` property is populated by our `onSuccess` call.
-    // We explicitly set the `url` property so the preview link works correctly.
     const processedList = newFileList.map(f => {
       if (f.response) {
-        f.url = f.response; // The response from our customRequest IS the URL.
+        // The response is the relative path, e.g., /uploads/image.png
+        // We construct the full URL for display purposes.
+        f.url = `${import.meta.env.VITE_API_URL}${f.response}`;
       }
       return f;
     });
     setFileList(processedList);
   };
 
-
-
-  // --- Form Submission ---
   const onFinish = async (values: ProductFormValues) => {
-    // FIX: Use the 'fileList' from our synchronized state, which correctly
-    // contains the final URLs after upload.
+    // Extract the relative path from the full URL for submission
     const finalImageUrls = fileList
       .filter(file => file.status === 'done' && file.url)
-      .map(file => file.url!); // The '!' asserts that url is not undefined here.
+      .map(file => file.url!.replace(import.meta.env.VITE_API_URL, ''));
     
-    // Construct the final object to send to the backend
-    const processedValues = {
-      ...values,
-      imageUrls: finalImageUrls, // Override the form's 'imageUrls' with our clean array of strings
-    };
+    const processedValues = { ...values, imageUrls: finalImageUrls };
     
     try {
       const mutationOptions = { refetchQueries: [{ query: GET_PRODUCTS }] };
@@ -196,36 +157,27 @@ const ProductFormModal: React.FC<ProductFormModalProps> = ({ open, onClose, prod
       messageApi.error(`Operation failed: ${e.message}`);
     }
   };
-  const uploadButton = (
-    <div>
-      {uploadLoading ? <LoadingOutlined /> : <PlusOutlined />}
-      <div style={{ marginTop: 8 }}>Upload</div>
-    </div>
-  );
+  const uploadButton = (<div> {uploadLoading ? <LoadingOutlined /> : <PlusOutlined />} <div style={{ marginTop: 8 }}>Upload</div> </div>);
 
   return (
     <Modal
       title={isEditMode ? 'Edit Product' : 'Add New Product'}
       open={open}
       onCancel={onClose}
-      width={800}
+      width={screens.md ? 800 : '95vw'} // Responsive modal width
       confirmLoading={isLoading}
-      footer={[
-        <Button key="back" onClick={onClose} disabled={isLoading}>Cancel</Button>,
-        <Button key="submit" type="primary" loading={isLoading} onClick={form.submit}>
-          {isEditMode ? 'Save Changes' : 'Create Product'}
-        </Button>,
-      ]}
+      footer={[ <Button key="back" onClick={onClose} disabled={isLoading}>Cancel</Button>, <Button key="submit" type="primary" loading={isLoading} onClick={form.submit}> {isEditMode ? 'Save Changes' : 'Create Product'} </Button>, ]}
       destroyOnClose
     >
       <Form form={form} layout="vertical" onFinish={onFinish} onValuesChange={handlePriceChange}>
+        {/* Use responsive columns: xs={24} for mobile (stacked), md={12} for desktop (side-by-side) */}
         <Row gutter={24}>
-          <Col span={12}>
+          <Col xs={24} md={12}>
             <Form.Item name="name" label="Product Name" rules={[{ required: true }]}>
               <Input />
             </Form.Item>
           </Col>
-          <Col span={12}>
+          <Col xs={24} md={12}>
             <Form.Item name="categoryId" label="Category" rules={[{ required: true }]}>
               <Select loading={categoriesLoading} placeholder="Select a category">
                 {categoriesData?.categories.map(cat => <Option key={cat.id} value={cat.id}>{cat.name}</Option>)}
@@ -237,7 +189,7 @@ const ProductFormModal: React.FC<ProductFormModalProps> = ({ open, onClose, prod
         <Form.Item name="description" label="Description"><TextArea rows={2} /></Form.Item>
         <Divider>Pricing & Tax</Divider>
         <Row gutter={24}>
-          <Col span={12}>
+          <Col xs={24} md={12}>
             <Form.Item name="taxIds" label="Applied Taxes">
               <Select mode="multiple" loading={taxesLoading} placeholder="Select tax rates" allowClear>
                 {taxesData?.taxes.filter(t => t.isEnabled).map(tax => (
@@ -246,19 +198,19 @@ const ProductFormModal: React.FC<ProductFormModalProps> = ({ open, onClose, prod
               </Select>
             </Form.Item>
           </Col>
-          <Col span={12}>
+          <Col xs={24} md={12}>
             <Form.Item name="standardCostPrice" label="Standard Cost Price" rules={[{ required: true }]}>
                 <InputNumber addonBefore={currencySymbol} style={{ width: '100%' }} min={0} precision={2} />
             </Form.Item>
           </Col>
         </Row>
         <Row gutter={24}>
-            <Col span={12}>
+            <Col xs={24} md={12}>
                 <Form.Item name="price" label="Price (before tax)" tooltip="Calculates Price (inc. tax) automatically.">
                     <InputNumber addonBefore={currencySymbol} style={{ width: '100%' }} min={0} precision={2} />
                 </Form.Item>
             </Col>
-            <Col span={12}>
+            <Col xs={24} md={12}>
                 <Form.Item name="priceIncTax" label="Price (inc. tax)" tooltip="Calculates Price (before tax) automatically.">
                     <InputNumber addonBefore={currencySymbol} style={{ width: '100%' }} min={0} precision={2} />
                 </Form.Item>
@@ -267,25 +219,25 @@ const ProductFormModal: React.FC<ProductFormModalProps> = ({ open, onClose, prod
 
         <Divider>Identifiers & Stock</Divider>
         <Row gutter={24}>
-          <Col span={12}>
+          <Col xs={24} md={12}>
             <Form.Item name="sku" label="SKU" tooltip="Leave blank to auto-generate.">
               <Input />
             </Form.Item>
           </Col>
-          <Col span={12}>
+          <Col xs={24} md={12}>
             <Form.Item name="barcode" label="Barcode (UPC/EAN)">
               <Input />
             </Form.Item>
           </Col>
         </Row>
         <Row gutter={24}>
-          <Col span={12}>
+          <Col xs={24} md={12}>
              <Form.Item name="outletReorderLimit" label="Reorder Limit" initialValue={0}>
                 <InputNumber style={{ width: '100%' }} min={0} />
             </Form.Item>
           </Col>
           {!isEditMode && (
-             <Col span={12}>
+             <Col xs={24} md={12}>
                 <Form.Item name="initialQuantity" label="Initial Stock Quantity" initialValue={0}>
                     <InputNumber style={{ width: '100%' }} min={0} />
                 </Form.Item>
@@ -295,19 +247,16 @@ const ProductFormModal: React.FC<ProductFormModalProps> = ({ open, onClose, prod
 
         <Divider>Images</Divider>
        <Form.Item label="Product Images" valuePropName="fileList" getValueFromEvent={(e) => {
-            // This function helps Form get the value from Upload's onChange event.
             if (Array.isArray(e)) return e;
             return e && e.fileList;
         }}>
         <Upload
                 listType="picture-card"
-                fileList={fileList} // Controlled by our state
+                fileList={fileList}
                 customRequest={handleCustomRequest}
                 onChange={handleUploadChange}
                 onPreview={(file) => window.open(file.url, '_blank')}
                 onRemove={(file) => {
-                    // When removing a file, we just update our local state.
-                    // The final list of URLs is built during submission.
                     const newFileList = fileList.filter(f => f.uid !== file.uid);
                     setFileList(newFileList);
                     return true;

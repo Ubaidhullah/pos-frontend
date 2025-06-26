@@ -16,6 +16,8 @@ import {
   Space,
   message,
   Empty,
+  Grid, // Import Grid for breakpoint detection
+  List,   // Import List for mobile view
 } from 'antd';
 import {
   ArrowLeftOutlined,
@@ -35,50 +37,20 @@ import { GET_SETTINGS } from '../../apollo/queries/settingsQueries';
 
 
 const { Title, Text, Paragraph } = Typography;
+const { useBreakpoint } = Grid; // Hook to get screen size info
 
-// --- Interfaces for data structures ---
-interface LandedCost {
-  name: string;
-  amount: number;
-}
+// --- Interfaces for data structures (omitted for brevity, same as your file) ---
+interface LandedCost { name: string; amount: number; }
 interface SupplierDetail { id: string; name: string; email?: string; phone?: string; address?: string;}
 interface UserDetail { id: string; name?: string; email: string; }
-
-interface PurchaseOrderFullDetail {
-  updatedAt: string | number | Date | null | undefined;
-  createdAt: string | number | Date | null | undefined;
-  id: string;
-  poNumber: string;
-  orderDate: string;
-  expectedDeliveryDate?: string;
-  actualDeliveryDate?: string;
-  status: PurchaseOrderStatus;
-  totalAmount: number;
-  notes?: string;
-  taxes?: number; // 👈 Add taxes
-  landingCosts?: LandedCost[] | string;// 👈 Add landed costs
-  //   supplier: { id: string; name: string; email?: string; phone?: string; address?: string; };
-  supplier: SupplierDetail;
-  user?: UserDetail;
-  items: {
-    id: string;
-    product: { id: string; name: string; sku?: string; };
-    quantityOrdered: number;
-    quantityReceived: number;
-    unitCost: number;
-    totalCost: number;
-  }[];
-}
-
-interface SettingsInfo {
-  displayCurrency?: string;
-  baseCurrency?: string;
-}
+interface PurchaseOrderFullDetail { updatedAt: string | number | Date | null | undefined; createdAt: string | number | Date | null | undefined; id: string; poNumber: string; orderDate: string; expectedDeliveryDate?: string; actualDeliveryDate?: string; status: PurchaseOrderStatus; totalAmount: number; notes?: string; taxes?: number; landingCosts?: LandedCost[] | string; supplier: SupplierDetail; user?: UserDetail; items: { id: string; product: { id: string; name: string; sku?: string; }; quantityOrdered: number; quantityReceived: number; unitCost: number; totalCost: number; }[]; }
+interface SettingsInfo { displayCurrency?: string; baseCurrency?: string; }
 
 const PurchaseOrderDetailPage: React.FC = () => {
   const { id: poId } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { hasRole } = useAuth();
+  const screens = useBreakpoint(); // Get screen size information
 
   const { data, loading, error, refetch } = useQuery<{ purchaseOrder: PurchaseOrderFullDetail }>(
     GET_PURCHASE_ORDER_BY_ID,
@@ -95,6 +67,7 @@ const PurchaseOrderDetailPage: React.FC = () => {
   const currencySymbol = useMemo(() => {
             return settingsData?.settings.displayCurrency || settingsData?.settings.baseCurrency || '$';
           }, [settingsData]);
+
   if (loading) return <div style={{ textAlign: 'center', padding: '50px' }}><Spin size="large" /></div>;
   if (error) return <Alert message="Error Loading Purchase Order" description={error.message} type="error" showIcon />;
 
@@ -103,15 +76,10 @@ const PurchaseOrderDetailPage: React.FC = () => {
 
   let parsedLandingCosts: LandedCost[] = [];
   if (typeof po.landingCosts === 'string') {
-    try {
-      parsedLandingCosts = JSON.parse(po.landingCosts);
-    } catch (e) {
-      console.error("Failed to parse landingCosts JSON", e);
-    }
+    try { parsedLandingCosts = JSON.parse(po.landingCosts); } catch (e) { console.error("Failed to parse landingCosts JSON", e); }
   } else if (Array.isArray(po.landingCosts)) {
     parsedLandingCosts = po.landingCosts;
   }
-
 
   const statusColors: { [key in PurchaseOrderStatus]: string } = {
     [PurchaseOrderStatus.DRAFT]: 'blue',
@@ -135,135 +103,125 @@ const PurchaseOrderDetailPage: React.FC = () => {
     { title: 'Ordered', dataIndex: 'quantityOrdered', key: 'qtyOrdered', align: 'right' as 'right' },
     { title: 'Received', dataIndex: 'quantityReceived', key: 'qtyReceived', align: 'right' as 'right' },
     { title: 'Unit Cost', dataIndex: 'unitCost', key: 'unitCost', align: 'right' as 'right', render: (cost: number) => `${currencySymbol}${cost.toFixed(2)}` },
-    { title: 'Item Total', dataIndex: 'totalCost', key: 'itemTotal', align: 'right' as 'right', render: (total: number) => `$${total.toFixed(2)}` },
+    { title: 'Item Total', dataIndex: 'totalCost', key: 'itemTotal', align: 'right' as 'right', render: (total: number) => `${currencySymbol}${total.toFixed(2)}` },
   ];
 
   const landedCostColumns = [
       { title: 'Cost Name', dataIndex: 'name', key: 'name' },
       { title: 'Amount', dataIndex: 'amount', key: 'amount', align: 'right' as 'right', render: (amount: number) => `${currencySymbol}${amount.toFixed(2)}` }
   ];
+  
+  // Render function for the mobile list view of items
+  const renderMobileItemsList = () => (
+    <List
+      header={<Title level={5} style={{ margin: 0 }}>Order Items</Title>}
+      dataSource={po.items}
+      renderItem={(item) => (
+        <List.Item>
+          <Card style={{ width: '100%' }}>
+            <Card.Meta
+              title={item.product.name}
+              description={`SKU: ${item.product.sku || 'N/A'}`}
+            />
+            <Divider style={{ margin: '12px 0' }}/>
+            <Descriptions column={2} size="small">
+                <Descriptions.Item label="Ordered">{item.quantityOrdered}</Descriptions.Item>
+                <Descriptions.Item label="Received">{item.quantityReceived}</Descriptions.Item>
+                <Descriptions.Item label="Unit Cost">{currencySymbol}{item.unitCost.toFixed(2)}</Descriptions.Item>
+                <Descriptions.Item label="Total">{currencySymbol}{item.totalCost.toFixed(2)}</Descriptions.Item>
+            </Descriptions>
+          </Card>
+        </List.Item>
+      )}
+    />
+  );
+
 
   return (
-    <div style={{ padding: '24px' }}>
+    <div style={{ padding: screens.md ? '24px' : '12px' }}>
       <Space direction="vertical" size="large" style={{ width: '100%' }}>
-        {/* --- Header and Action Buttons --- */}
-        <Row justify="space-between" align="middle">
+        <Row justify="space-between" align="middle" gutter={[16, 16]}>
           <Col>
-            <Space>
+            <Space align="center" wrap>
                 <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/admin/purchase-orders')}>
                     Back to List
                 </Button>
-                <Title level={2} style={{ margin: 0 }}>Purchase Order: {po.poNumber}</Title>
-                <Tag color={statusColors[po.status] || 'default'} style={{ marginLeft: 8, fontSize: '1em', padding: '4px 8px' }}>
-                    {po.status.replace('_', ' ')}
-                </Tag>
+                <div>
+                    <Title level={4} style={{ margin: 0 }}>PO: {po.poNumber}</Title>
+                    <Tag color={statusColors[po.status] || 'default'}>{po.status.replace('_', ' ')}</Tag>
+                </div>
             </Space>
           </Col>
           <Col>
             <Space wrap>
-              <Button icon={<PrinterOutlined />} onClick={() => { message.info("Print functionality to be implemented."); window.print(); /* Basic browser print */ }}>Print PO</Button>
-              {canEdit && (
-                <Button icon={<EditOutlined />} type="dashed" onClick={() => navigate(`/admin/purchase-orders/edit/${po.id}`)}>
-                  Edit Draft
-                </Button>
-              )}
-              {canUpdateStatus && (
-                <Button icon={<CheckCircleOutlined />} onClick={() => setIsUpdateStatusModalOpen(true)}>
-                  Update Status
-                </Button>
-              )}
-              {canReceiveItems && (
-                <Button type="primary" icon={<DeliveredProcedureOutlined />} onClick={() => setIsReceiveItemsModalOpen(true)}>
-                  Receive Items
-                </Button>
-              )}
+              {canEdit && <Button icon={<EditOutlined />} type="dashed" onClick={() => navigate(`/admin/purchase-orders/edit/${po.id}`)}>Edit</Button>}
+              {canUpdateStatus && <Button icon={<CheckCircleOutlined />} onClick={() => setIsUpdateStatusModalOpen(true)}>Update Status</Button>}
+              {canReceiveItems && <Button type="primary" icon={<DeliveredProcedureOutlined />} onClick={() => setIsReceiveItemsModalOpen(true)}>Receive Items</Button>}
             </Space>
           </Col>
         </Row>
 
-        {/* --- PO and Supplier Details --- */}
-        <Row gutter={24}>
+        <Row gutter={[24, 24]}>
           <Col xs={24} md={12}>
-            <Card title="PO Information">
+            <Card title="PO Information" size="small">
               <Descriptions bordered column={1} size="small">
-                <Descriptions.Item label="PO Number">{po.poNumber}</Descriptions.Item>
-                <Descriptions.Item label="Order Date">{dayjs(po.orderDate).format('YYYY-MM-DD HH:mm')}</Descriptions.Item>
+                <Descriptions.Item label="Order Date">{dayjs(po.orderDate).format('YYYY-MM-DD')}</Descriptions.Item>
                 <Descriptions.Item label="Expected Delivery">{po.expectedDeliveryDate ? dayjs(po.expectedDeliveryDate).format('YYYY-MM-DD') : 'N/A'}</Descriptions.Item>
-                <Descriptions.Item label="Actual Delivery">{po.actualDeliveryDate ? dayjs(po.actualDeliveryDate).format('YYYY-MM-DD') : 'N/A'}</Descriptions.Item>
-                <Descriptions.Item label="Status">
-                  <Tag color={statusColors[po.status] || 'default'}>{po.status.replace('_', ' ')}</Tag>
-                </Descriptions.Item>
                 <Descriptions.Item label="Created By">{po.user?.name || po.user?.email || 'N/A'}</Descriptions.Item>
-                <Descriptions.Item label="Created At">{dayjs(po.createdAt).format('YYYY-MM-DD HH:mm')}</Descriptions.Item>
-                <Descriptions.Item label="Last Updated">{dayjs(po.updatedAt).format('YYYY-MM-DD HH:mm')}</Descriptions.Item>
               </Descriptions>
             </Card>
           </Col>
           <Col xs={24} md={12}>
-            <Card title="Supplier Information">
+            <Card title="Supplier Information" size="small">
               <Descriptions bordered column={1} size="small">
-                <Descriptions.Item label="Supplier Name"><Link to={`/admin/suppliers/${po.supplier.id}`}>{po.supplier.name}</Link></Descriptions.Item>
+                <Descriptions.Item label="Name"><Link to={`/admin/suppliers/${po.supplier.id}`}>{po.supplier.name}</Link></Descriptions.Item>
                 <Descriptions.Item label="Email">{po.supplier.email || 'N/A'}</Descriptions.Item>
-                <Descriptions.Item label="Phone">{po.supplier.phone || 'N/A'}</Descriptions.Item>
-                <Descriptions.Item label="Address"><Paragraph ellipsis={{ rows: 2, expandable: true, symbol: 'more' }}>{po.supplier.address || 'N/A'}</Paragraph></Descriptions.Item>
               </Descriptions>
             </Card>
           </Col>
         </Row>
 
-        {po.notes && (
-            <Card title="Notes / Remarks" style={{marginTop: 24}}>
-                <Paragraph>{po.notes}</Paragraph>
-            </Card>
+        {po.notes && <Card title="Notes / Remarks" size="small"><Paragraph>{po.notes}</Paragraph></Card>}
+        
+        {/* Conditionally render Table for desktop or List for mobile */}
+        {screens.md ? (
+          <Card title="Order Items">
+            <Table
+              columns={itemColumns}
+              dataSource={po.items}
+              rowKey="id"
+              pagination={false}
+              bordered
+              size="middle"
+              summary={() => (
+                <Table.Summary fixed>
+                  <Table.Summary.Row><Table.Summary.Cell index={0} colSpan={6} align="right"><Text strong>Subtotal:</Text></Table.Summary.Cell><Table.Summary.Cell index={1} align="right"><Text strong>{currencySymbol}{subTotalItems.toFixed(2)}</Text></Table.Summary.Cell></Table.Summary.Row>
+                  {(po.taxes ?? 0) > 0 && <Table.Summary.Row><Table.Summary.Cell index={0} colSpan={6} align="right"><Text>Taxes:</Text></Table.Summary.Cell><Table.Summary.Cell index={1} align="right"><Text>{currencySymbol}{(po.taxes || 0).toFixed(2)}</Text></Table.Summary.Cell></Table.Summary.Row>}
+                  <Table.Summary.Row style={{background: '#fafafa'}}><Table.Summary.Cell index={0} colSpan={6} align="right"><Title level={5} style={{margin:0}}>Grand Total:</Title></Table.Summary.Cell><Table.Summary.Cell index={1} align="right"><Title level={5} style={{margin:0}}>{currencySymbol}{po.totalAmount.toFixed(2)}</Title></Table.Summary.Cell></Table.Summary.Row>
+                </Table.Summary>
+              )}
+            />
+          </Card>
+        ) : (
+          renderMobileItemsList()
         )}
-
-        <Card title="Order Items" style={{ marginTop: 24 }}>
-          <Table
-            columns={itemColumns}
-            dataSource={po.items}
-            rowKey="id"
-            pagination={false}
-            bordered
-            size="middle"
-            summary={() => (
-              <Table.Summary fixed>
-                <Table.Summary.Row>
-                  <Table.Summary.Cell index={0} colSpan={6} align="right"><Text strong>Subtotal (Items):</Text></Table.Summary.Cell>
-                  <Table.Summary.Cell index={1} align="right"><Text strong>{currencySymbol}{subTotalItems.toFixed(2)}</Text></Table.Summary.Cell>
-                </Table.Summary.Row>
-                 { (po.taxes !== null && po.taxes !== undefined && po.taxes > 0) &&
-                    <Table.Summary.Row>
-                        <Table.Summary.Cell index={0} colSpan={6} align="right"><Text>Taxes:</Text></Table.Summary.Cell>
-                        <Table.Summary.Cell index={1} align="right"><Text>{currencySymbol}{(po.taxes || 0).toFixed(2)}</Text></Table.Summary.Cell>
-                    </Table.Summary.Row>
-                }
-                <Table.Summary.Row style={{background: '#fafafa'}}>
-                  <Table.Summary.Cell index={0} colSpan={6} align="right"><Title level={5} style={{margin:0}}>Grand Total:</Title></Table.Summary.Cell>
-                  <Table.Summary.Cell index={1} align="right"><Title level={5} style={{margin:0}}>{currencySymbol}{po.totalAmount.toFixed(2)}</Title></Table.Summary.Cell>
-                </Table.Summary.Row>
-              </Table.Summary>
-            )}
-          />
-        </Card>
-
-        {/* 👇 NEW Landed Costs Card */}
-        <Row gutter={24}>
+        
+        <Row gutter={[24, 24]}>
             <Col xs={24} md={12}>
-                <Card title="Landed Costs">
+                <Card title="Landed Costs" size="small">
                     {parsedLandingCosts && parsedLandingCosts.length > 0 ? (
                         <Table columns={landedCostColumns} dataSource={parsedLandingCosts} rowKey="name" pagination={false} size="small" bordered/>
                     ) : (
-                        <Empty description="No additional landed costs were added." />
+                        <Empty description="No landed costs." />
                     )}
                 </Card>
             </Col>
             
-            {/* --- Summary Calculation --- */}
             <Col xs={24} md={12}>
-                <Card title="Financial Summary">
+                <Card title="Financial Summary" size="small">
                     <Descriptions column={1} layout="horizontal" bordered size="small">
                         <Descriptions.Item label="Items Subtotal">{currencySymbol}{subTotalItems.toFixed(2)}</Descriptions.Item>
-                        <Descriptions.Item label="Total Landed Costs">{currencySymbol}{totalLandedCosts.toFixed(2)}</Descriptions.Item>
+                        <Descriptions.Item label="Landed Costs">{currencySymbol}{totalLandedCosts.toFixed(2)}</Descriptions.Item>
                         <Descriptions.Item label={<Text strong>Grand Total</Text>}><Text strong>{currencySymbol}{po.totalAmount.toFixed(2)}</Text></Descriptions.Item>
                     </Descriptions>
                 </Card>
@@ -271,19 +229,10 @@ const PurchaseOrderDetailPage: React.FC = () => {
         </Row>
       </Space>
 
-      {/* Modals for actions */}
       {po && (
         <>
-          <UpdatePOStatusModal
-            open={isUpdateStatusModalOpen}
-            onClose={() => { setIsUpdateStatusModalOpen(false); refetch(); /* Refetch to update details on this page */ }}
-            purchaseOrder={{id: po.id, poNumber: po.poNumber, status: po.status}}
-          />
-          <ReceivePOItemsModal
-            open={isReceiveItemsModalOpen}
-            onClose={() => { setIsReceiveItemsModalOpen(false); refetch(); /* Refetch to update details on this page */}}
-            purchaseOrderId={po.id}
-          />
+          <UpdatePOStatusModal open={isUpdateStatusModalOpen} onClose={() => { setIsUpdateStatusModalOpen(false); refetch(); }} purchaseOrder={{id: po.id, poNumber: po.poNumber, status: po.status}} />
+          <ReceivePOItemsModal open={isReceiveItemsModalOpen} onClose={() => { setIsReceiveItemsModalOpen(false); refetch(); }} purchaseOrderId={po.id} />
         </>
       )}
     </div>
