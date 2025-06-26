@@ -96,17 +96,22 @@ const ProductListPage: React.FC = () => {
         dataIndex: 'imageUrls',
         key: 'image',
         width: 80,
-        render: (imageUrls: string[]) => (
-            imageUrls && imageUrls.length > 0 ? (
+        render: (imageUrls: string[]) => {
+            if (!imageUrls || imageUrls.length === 0) {
+                return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={false} />;
+            }
+            // --- FIX IS HERE ---
+            // Construct the full, absolute URL using the environment variable.
+            const fullImageUrl = `${import.meta.env.VITE_API_URL}${imageUrls[0]}`;
+            
+            return (
                 <Image
                     width={50}
-                    src={imageUrls[0]}
-                    preview={{ src: imageUrls[0] }}
+                    src={fullImageUrl} // Use the correctly constructed URL
+                    preview={{ src: fullImageUrl }} 
                 />
-            ) : (
-                <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={false} />
-            )
-        )
+            );
+        }
     },
     { title: 'Name', dataIndex: 'name', key: 'name', sorter: (a: ProductListData, b: ProductListData) => a.name.localeCompare(b.name) },
     { title: 'SKU', dataIndex: 'sku', key: 'sku' },

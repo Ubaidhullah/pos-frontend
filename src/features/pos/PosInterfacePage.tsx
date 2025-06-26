@@ -22,14 +22,14 @@ import {
   Input,
   Image,
   Switch,
-  Dropdown, // <-- Import Dropdown for mobile actions
-  Grid, // <-- Import Grid for breakpoint detection
+  Dropdown,
+  Grid,
 } from 'antd';
 import { 
     ShoppingCartOutlined, DeleteOutlined, DollarCircleOutlined, TagOutlined, 
-    SearchOutlined, EditOutlined, ScheduleOutlined, EllipsisOutlined // <-- Import Ellipsis icon
+    SearchOutlined, EditOutlined, ScheduleOutlined, EllipsisOutlined
 } from '@ant-design/icons';
-import type { MenuProps } from 'antd'; // <-- Import MenuProps type
+import type { MenuProps } from 'antd';
 import { useReactToPrint } from 'react-to-print';
 
 // Local Imports
@@ -46,24 +46,16 @@ import { DiscountType } from '../../common/enums/discount-type.enum';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
-const { useBreakpoint } = Grid; // <-- Hook to get screen size
+const { useBreakpoint } = Grid;
 
-interface SettingsData {
-  pricesEnteredWithTax: boolean;
-  allowPriceEditAtSale: boolean;
-  allowNegativeStockSale: boolean;
-  displayCurrency?: string;
-  baseCurrency?: string;
-}
-
-// --- Interfaces (omitted for brevity, they are the same as your file) ---
+// --- Interfaces ---
+interface SettingsData { pricesEnteredWithTax: boolean; allowPriceEditAtSale: boolean; allowNegativeStockSale: boolean; displayCurrency?: string; baseCurrency?: string; }
 interface ProductData { id: string; name: string; sku?: string; price: number; imageUrls: string[]; inventoryItem?: { quantity: number }; taxes?: { rate: number; name: string; }[]; }
 interface CustomerData { id: string; name: string; }
 interface CartItem { productId: string; name: string; quantity: number; price: number; stock: number; discountType: DiscountType; discountValue: number; taxRate?: number; priceAtSale: number; }
 interface DiscountFormValues { type: DiscountType; value: number; }
 
-
-// --- Helper Components (omitted for brevity, they are the same as your file) ---
+// --- Helper Components ---
 const PriceEditPopoverContent: React.FC<{ onApply: (newPrice: number) => void; initialValue: number; currencySymbol: string }> = ({ onApply, initialValue, currencySymbol }) => { const [newPrice, setNewPrice] = useState(initialValue); return (<Space><InputNumber value={newPrice} onChange={(val) => setNewPrice(val!)} min={0} precision={2} prefix={currencySymbol} /><Button type="primary" onClick={() => onApply(newPrice)}>Set</Button></Space>);};
 const DiscountPopoverContent: React.FC<{ onApply: (values: DiscountFormValues) => void; initialValues: DiscountFormValues; currencySymbol: string; }> = ({ onApply, initialValues, currencySymbol }) => { const [form] = Form.useForm<DiscountFormValues>(); const type = Form.useWatch('type', form); const handleApplyClick = () => { form.validateFields().then(values => onApply(values)); }; return (<Form form={form} layout="vertical" initialValues={initialValues} size="small"><Form.Item name="type" label="Discount Type"><Radio.Group><Radio.Button value={DiscountType.PERCENTAGE}>%</Radio.Button><Radio.Button value={DiscountType.FIXED_AMOUNT}>{currencySymbol}</Radio.Button></Radio.Group></Form.Item><Form.Item name="value" label="Value" rules={[{ required: true }]}><InputNumber min={0} style={{width: '100%'}} prefix={type === DiscountType.FIXED_AMOUNT ? currencySymbol : undefined} /></Form.Item><Button type="primary" onClick={handleApplyClick} block>Apply</Button></Form>);};
 
@@ -81,7 +73,7 @@ const PosInterfacePage: React.FC = () => {
   const { hasRole } = useAuth();
   const { messageApi } = useAntdNotice();
   const receiptRef = useRef<HTMLDivElement>(null);
-  const screens = useBreakpoint(); // Get screen size information
+  const screens = useBreakpoint(); 
 
   const handlePrint = useReactToPrint({ contentRef: receiptRef, documentTitle: `Receipt-${lastCompletedOrder?.billNumber}` });
 
@@ -134,8 +126,8 @@ const PosInterfacePage: React.FC = () => {
       currentTotalItemDiscount += lineDiscountAmount;
       const priceAfterDiscount = lineTotal - lineDiscountAmount;
       const taxRate = item.taxRate;
-      if (taxRate && taxRate > 0) {
-        if (pricesEnteredWithTax) lineTotal > 0 ? currentTotalTax += priceAfterDiscount - (priceAfterDiscount / (1 + taxRate / 100)) : 0;
+      if (taxRate && taxRate > 0 && priceAfterDiscount > 0) {
+        if (pricesEnteredWithTax) currentTotalTax += priceAfterDiscount - (priceAfterDiscount / (1 + taxRate / 100));
         else currentTotalTax += priceAfterDiscount * (taxRate / 100);
       }
     });
@@ -145,15 +137,14 @@ const PosInterfacePage: React.FC = () => {
     else if (cartDiscount.type === DiscountType.FIXED_AMOUNT) cartDiscountAmount = cartDiscount.value;
     cartDiscountAmount = Math.min(cartDiscountAmount, subtotalAfterItemDiscounts);
     const subtotalAfterAllDiscounts = subtotalAfterItemDiscounts - cartDiscountAmount;
-    const finalGrandTotal = subtotalAfterAllDiscounts + (pricesEnteredWithTax ? 0 : currentTotalTax); // Final logic fix
+    const finalGrandTotal = pricesEnteredWithTax ? subtotalAfterAllDiscounts : subtotalAfterAllDiscounts + currentTotalTax;
     return { itemsTotal: currentItemsTotal, totalDiscount: currentTotalItemDiscount + cartDiscountAmount, totalTax: currentTotalTax, grandTotal: finalGrandTotal > 0 ? finalGrandTotal : 0 };
   }, [cart, cartDiscount, pricesEnteredWithTax]);
 
   useEffect(() => { fetchCustomers(); }, [fetchCustomers]);
   
-  // --- Handlers (omitted for brevity, they are the same as your file) ---
   const handleAddToCart = (product: ProductData) => { const stock = product.inventoryItem?.quantity ?? 0; if (stock <= 0 && !allowNegativeStockSale) { messageApi.warning(`${product.name} is out of stock!`); return; } const totalTaxRate = product.taxes?.reduce((sum, tax) => sum + tax.rate, 0) || 0; setCart((prevCart) => { const existingItem = prevCart.find(item => item.productId === product.id); if (existingItem) { const updatedCart = [...prevCart]; const itemInCart = updatedCart.find(i => i.productId === product.id)!; if (allowNegativeStockSale || itemInCart.quantity < stock) { itemInCart.quantity += 1; } else { messageApi.warning('Maximum stock reached'); } return updatedCart; } return [...prevCart, { productId: product.id, name: product.name, quantity: 1, price: product.price, priceAtSale: product.price, stock: stock, discountType: DiscountType.NONE, discountValue: 0, taxRate: totalTaxRate }]; }); };
-  const handleUpdateCartQuantity = (productId: string, quantity: number | null) => { const finalQuantity = quantity === null ? 0 : quantity; setCart(prevCart => prevCart.map(item => item.productId === productId ? { ...item, quantity: Math.max(0, allowNegativeStockSale ? Infinity : item.stock) } : item ).filter(item => item.quantity > 0)); };
+  const handleUpdateCartQuantity = (productId: string, quantity: number | null) => { const finalQuantity = quantity === null ? 0 : quantity; setCart(prevCart => prevCart.map(item => item.productId === productId ? { ...item, quantity: finalQuantity > (allowNegativeStockSale ? Infinity : item.stock) ? item.stock : finalQuantity } : item ).filter(item => item.quantity > 0)); };
   const handleRemoveFromCart = (productId: string) => { setCart(prevCart => prevCart.filter(item => item.productId !== productId)); };
   const applyLineItemDiscount = (productId: string, discount: DiscountFormValues) => { setCart(prevCart => prevCart.map(item => item.productId === productId ? { ...item, discountType: discount.type, discountValue: discount.value } : item)); messageApi.success('Item discount applied!'); };
   const applyCartDiscount = (discount: DiscountFormValues) => { setCartDiscount(discount); messageApi.success('Cart discount applied!'); };
@@ -163,53 +154,65 @@ const PosInterfacePage: React.FC = () => {
 
 
   if (productsError) return <Alert message="Error Loading Products" description={productsError.message} type="error" showIcon />;
+  
+  const cartListStyle: React.CSSProperties = {
+    minHeight: '150px',
+    ...(screens.lg && {
+        maxHeight: 'calc(100vh - 550px)',
+        overflowY: 'auto',
+        paddingRight: '8px',
+    }),
+  };
 
   return (
     <>
       <Row gutter={[16, 16]}>
-        <Col xs={24} lg={15}>
+        <Col xs={24} md={14} lg={15}>
           <Title level={3}>Point of Sale</Title>
-          <Input placeholder="Search products..." prefix={<SearchOutlined />} onChange={(e) => setSearchTerm(e.target.value)} value={searchTerm} allowClear style={{ marginBottom: 16 }} />
+          <Input placeholder="Search products by name or SKU..." prefix={<SearchOutlined />} onChange={(e) => setSearchTerm(e.target.value)} value={searchTerm} allowClear style={{ marginBottom: 16 }} />
           {productsLoading ? <div style={{textAlign: 'center', padding: '50px'}}><Spin tip="Loading Products..." size="large"/></div> : (
-            <List
-              grid={{ gutter: 16, xs: 2, sm: 3, md: 4, lg: 5, xl: 6 }} // Adjusted grid for better mobile view
-              dataSource={filteredProducts} 
-              renderItem={(product) => (
+            <List grid={{ gutter: 16, xs: 2, sm: 3, md: 4, lg: 5 }} dataSource={filteredProducts} renderItem={(product) => {
+              const imageUrl = product.imageUrls && product.imageUrls.length > 0
+                ? `${import.meta.env.VITE_API_URL}${product.imageUrls[0]}`
+                : null;
+
+              return (
                 <List.Item>
-                  <Card hoverable cover={ product.imageUrls && product.imageUrls.length > 0 ? (<Image alt={product.name} src={product.imageUrls[0]} style={{ height: 120, objectFit: 'cover' }} preview={false} />) : (<div style={{height: 120, background: '#f0f0f0', display: 'flex', alignItems: 'center', justifyContent: 'center'}}><Text type="secondary">No Image</Text></div>) } styles={{ body: { padding: '12px' } }}
-                    actions={[ <Button type="primary" icon={<ShoppingCartOutlined />} onClick={() => handleAddToCart(product)} disabled={(product.inventoryItem?.quantity ?? 0) <= 0 && !allowNegativeStockSale}>Add</Button> ]}>
+                  <Card 
+                    hoverable 
+                    cover={ imageUrl ? (<Image alt={product.name} src={imageUrl} style={{ height: 120, objectFit: 'cover' }} preview={false} />) : (<div style={{height: 120, background: '#f0f0f0', display: 'flex', alignItems: 'center', justifyContent: 'center'}}><Text type="secondary">No Image</Text></div>) } 
+                    styles={{ body: { padding: '12px' } }}
+                    actions={[ <Button type="primary" icon={<ShoppingCartOutlined />} onClick={() => handleAddToCart(product)} disabled={(product.inventoryItem?.quantity ?? 0) <= 0 && !allowNegativeStockSale}>Add</Button> ]}
+                  >
                     <Card.Meta title={<Tooltip title={product.name}>{product.name}</Tooltip>} description={ <> <Text strong>{currencySymbol}{product.price.toFixed(2)}</Text> <Text type={(product.inventoryItem?.quantity ?? 0) > 10 ? 'success' : 'warning'} style={{display: 'block'}}>Stock: {product.inventoryItem?.quantity ?? 'N/A'}</Text> </> }/>
                   </Card>
                 </List.Item>
-              )}
-            />
+              );
+            }}/>
           )}
         </Col>
-        <Col xs={24} lg={9}>
-          <Card title={<Space><ShoppingCartOutlined /> Current Sale</Space>} style={ screens.lg ? { position: 'sticky', top: '16px' } : {}}>
+        <Col xs={24} md={10} lg={9}>
+          <Card title={<Space><ShoppingCartOutlined /> Current Sale</Space>} style={ screens.md ? { position: 'sticky', top: '16px' } : {}}>
             <Select showSearch value={selectedCustomerId} placeholder="Select a customer (Optional)" onChange={(value) => setSelectedCustomerId(value)} loading={customersLoading} style={{ width: '100%', marginBottom: 16 }} allowClear filterOption={(input, option) => (option?.children as unknown as string)?.toLowerCase().includes(input.toLowerCase())}>
               {customersData?.customers.map((customer) => (<Option key={customer.id} value={customer.id}>{customer.name}</Option>))}
             </Select>
             <Divider style={{margin: '0 0 8px 0'}}/>
-            <div style={{ maxHeight: 'calc(100vh - 550px)', minHeight: 150, overflowY: 'auto', paddingRight: screens.xs ? 0 : '8px' }}>
+            <div style={cartListStyle}>
               {cart.length === 0 ? (<div style={{ paddingTop: '40px' }}><Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Cart is empty" /></div>) : (
                 <List dataSource={cart} itemLayout="horizontal" renderItem={(item) => {
-                  
-                  // Mobile-friendly actions menu
-                  const menuItems: MenuProps['items'] = [];
-                  if(allowPriceEditAtSale) {
-                    menuItems.push({ key: 'edit-price', label: ( <Popover content={<PriceEditPopoverContent onApply={(newPrice) => handlePriceEdit(item.productId, newPrice)} initialValue={item.priceAtSale} currencySymbol={currencySymbol} />} title="Set Custom Price" trigger="click" placement="left"><Button type="text" icon={<EditOutlined />} block>Edit Price</Button></Popover> )});
-                  }
-                  menuItems.push({ key: 'apply-discount', label: ( <Popover content={ <DiscountPopoverContent onApply={(values) => applyLineItemDiscount(item.productId, values)} initialValues={{ type: item.discountType, value: item.discountValue }} currencySymbol={currencySymbol} /> } title="Apply Item Discount" trigger="click" placement="left"><Button type="text" icon={<TagOutlined />} block>Apply Discount</Button></Popover> )});
+                  const itemActions: MenuProps['items'] = [
+                    allowPriceEditAtSale && { key: 'edit-price', label: ( <Popover content={<PriceEditPopoverContent onApply={(newPrice) => handlePriceEdit(item.productId, newPrice)} initialValue={item.priceAtSale} currencySymbol={currencySymbol} />} title="Set Custom Price" trigger="click" placement="left"><Button type="text" icon={<EditOutlined />} block>Edit Price</Button></Popover> )},
+                    { key: 'apply-discount', label: ( <Popover content={ <DiscountPopoverContent onApply={(values) => applyLineItemDiscount(item.productId, values)} initialValues={{ type: item.discountType, value: item.discountValue }} currencySymbol={currencySymbol} /> } title="Apply Item Discount" trigger="click" placement="left"><Button type="text" icon={<TagOutlined />} block>Apply Discount</Button></Popover> )}
+                  ].filter(Boolean) as MenuProps['items'];
 
                   return (
                     <List.Item
-                      actions={screens.sm ? [
+                      actions={screens.md ? [ // Actions for medium screens and up
                         allowPriceEditAtSale && <Popover content={<PriceEditPopoverContent onApply={(newPrice) => handlePriceEdit(item.productId, newPrice)} initialValue={item.priceAtSale} currencySymbol={currencySymbol} />} title="Set Custom Price" trigger="click" placement="left"><Tooltip title="Edit Price"><Button type="text" icon={<EditOutlined />} /></Tooltip></Popover>,
                         <Popover content={<DiscountPopoverContent onApply={(values) => applyLineItemDiscount(item.productId, values)} initialValues={{ type: item.discountType, value: item.discountValue }} currencySymbol={currencySymbol} />} title="Apply Item Discount" trigger="click" placement="left"><Tooltip title="Apply Discount"><Button type="text" icon={<TagOutlined />} /></Tooltip></Popover>,
                         <Tooltip title="Remove Item"><Button type="text" danger icon={<DeleteOutlined />} onClick={() => handleRemoveFromCart(item.productId)} /></Tooltip>,
-                      ] : [ // Actions for extra small screens
-                        <Dropdown menu={{ items: menuItems }} trigger={['click']}><Button type="text" icon={<EllipsisOutlined />} /></Dropdown>,
+                      ] : [ // Collapsed actions for small screens
+                        <Dropdown menu={{ items: itemActions }} trigger={['click']}><Button type="text" icon={<EllipsisOutlined />} /></Dropdown>,
                         <Tooltip title="Remove Item"><Button type="text" danger icon={<DeleteOutlined />} onClick={() => handleRemoveFromCart(item.productId)} /></Tooltip>
                       ]}
                     >
@@ -236,7 +239,7 @@ const PosInterfacePage: React.FC = () => {
           </Card>
         </Col>
       </Row>
-      <PaymentModal open={isPaymentModalOpen} onClose={() => setIsPaymentModalOpen(false)} totalAmountDue={grandTotal} onSubmit={handleProcessPayment} isProcessing={orderLoading} isLayaway={isLayawayMode} currencySymbol={currencySymbol}  />
+      <PaymentModal open={isPaymentModalOpen} onClose={() => setIsPaymentModalOpen(false)} totalAmountDue={grandTotal} onSubmit={handleProcessPayment} isProcessing={orderLoading} isLayaway={isLayawayMode} currencySymbol={currencySymbol} />
       <div className="receipt-container-hidden"><div ref={receiptRef} tabIndex={-1}><Receipt order={lastCompletedOrder} /></div></div>
     </>
   );
