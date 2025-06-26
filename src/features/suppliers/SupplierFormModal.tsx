@@ -1,11 +1,12 @@
 import React, { useEffect } from 'react';
-import { Modal, Form, Input, Button, message } from 'antd';
+import { Modal, Form, Input, Button, message, Grid } from 'antd';
 import { useMutation } from '@apollo/client';
 import { CREATE_SUPPLIER, UPDATE_SUPPLIER } from '../../apollo/mutations/supplierMutations';
 import { GET_SUPPLIERS } from '../../apollo/queries/supplierQueries';
 import { useAntdNotice } from '../../contexts/AntdNoticeContext';
 
 const { TextArea } = Input;
+const { useBreakpoint } = Grid; // Import the useBreakpoint hook
 
 interface SupplierFormData {
   name: string;
@@ -30,12 +31,12 @@ interface SupplierFormModalProps {
 const SupplierFormModal: React.FC<SupplierFormModalProps> = ({ open, onClose, supplierToEdit, onSuccess }) => {
   const [form] = Form.useForm<SupplierFormData>();
   const { messageApi } = useAntdNotice();
+  const screens = useBreakpoint(); // Hook to get screen size info
 
   const [createSupplier, { loading: createLoading }] = useMutation(CREATE_SUPPLIER, {
-    // 👇 Add onCompleted handler
     onCompleted: (data) => {
         if (data?.createSupplier && onSuccess) {
-            onSuccess(data.createSupplier.id); // Pass the new ID back
+            onSuccess(data.createSupplier.id);
         }
     }
   });
@@ -62,11 +63,11 @@ const SupplierFormModal: React.FC<SupplierFormModalProps> = ({ open, onClose, su
       } else {
         await createSupplier({
           variables: { createSupplierInput: values },
-          refetchQueries: [{ query: GET_SUPPLIERS }],
+          // No need to refetch here if the `onSuccess` callback handles it
         });
         messageApi.success('Supplier created successfully!');
       }
-      onClose(); // This will trigger form.resetFields() via useEffect if not editing
+      onClose(); 
     } catch (e: any) {
       messageApi.error(`Operation failed: ${e.message}`);
     }
@@ -79,6 +80,7 @@ const SupplierFormModal: React.FC<SupplierFormModalProps> = ({ open, onClose, su
       title={supplierToEdit ? 'Edit Supplier' : 'Add New Supplier'}
       open={open}
       onCancel={onClose}
+      width={screens.md ? 720 : '95vw'} // Responsive modal width
       confirmLoading={isLoading}
       footer={[
         <Button key="back" onClick={onClose} disabled={isLoading}>
@@ -91,28 +93,26 @@ const SupplierFormModal: React.FC<SupplierFormModalProps> = ({ open, onClose, su
       destroyOnClose
       maskClosable={false}
     >
-      {open && ( // Render form only when modal is open
-        <Form form={form} layout="vertical" name="supplierForm" onFinish={handleFinish}>
-          <Form.Item name="name" label="Supplier Name" rules={[{ required: true, message: 'Please input the supplier name!' }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item name="contactName" label="Contact Name">
-            <Input />
-          </Form.Item>
-          <Form.Item name="email" label="Email" rules={[{ type: 'email', message: 'Invalid email format!' }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item name="phone" label="Phone Number">
-            <Input />
-          </Form.Item>
-          <Form.Item name="address" label="Address">
-            <TextArea rows={2} />
-          </Form.Item>
-          <Form.Item name="notes" label="Notes">
-            <TextArea rows={3} />
-          </Form.Item>
-        </Form>
-      )}
+      <Form form={form} layout="vertical" name="supplierForm" onFinish={handleFinish}>
+        <Form.Item name="name" label="Supplier Name" rules={[{ required: true, message: 'Please input the supplier name!' }]}>
+          <Input />
+        </Form.Item>
+        <Form.Item name="contactName" label="Contact Name">
+          <Input />
+        </Form.Item>
+        <Form.Item name="email" label="Email" rules={[{ type: 'email', message: 'Invalid email format!' }]}>
+          <Input />
+        </Form.Item>
+        <Form.Item name="phone" label="Phone Number">
+          <Input />
+        </Form.Item>
+        <Form.Item name="address" label="Address">
+          <TextArea rows={2} />
+        </Form.Item>
+        <Form.Item name="notes" label="Notes">
+          <TextArea rows={3} />
+        </Form.Item>
+      </Form>
     </Modal>
   );
 };
