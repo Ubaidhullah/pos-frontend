@@ -3,6 +3,7 @@ import { Modal, Form, Button, Select, InputNumber, Space, Statistic, Divider, Ro
 import { DollarCircleOutlined, PlusOutlined, DeleteOutlined } from '@ant-design/icons';
 import { PaymentMethod } from '../../common/enums/payment-method.enum';
 import { useAntdNotice } from '../../contexts/AntdNoticeContext';
+import { useQuery } from '@apollo/client';
 
 const { useBreakpoint } = Grid;
 
@@ -19,7 +20,8 @@ interface PaymentModalProps {
   onSubmit: (payments: PaymentInput[]) => void;
   isProcessing: boolean;
   isLayaway?: boolean;
-  currencySymbol: string; 
+  currencySymbol: string;
+  onOrderCompleted?: () => void; 
 }
 
 const PaymentModal: React.FC<PaymentModalProps> = ({ open, onClose, totalAmountDue, onSubmit, isProcessing, isLayaway, currencySymbol }) => {
@@ -27,7 +29,6 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ open, onClose, totalAmountD
   const [totalPaid, setTotalPaid] = useState(0);
   const { messageApi } = useAntdNotice();
   const screens = useBreakpoint();
-  
 
   // Reset form when modal is opened or closed
   useEffect(() => {
@@ -55,6 +56,8 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ open, onClose, totalAmountD
         }
     const validPayments = values.payments.filter(p => p && p.amount > 0);
     onSubmit(validPayments);
+    onClose();
+    onOrderCompleted?.();
   };
 
   const changeDue = totalPaid - totalAmountDue;
@@ -155,3 +158,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ open, onClose, totalAmountD
 };
 
 export default PaymentModal;
+function onOrderCompleted() {
+  throw new Error('Function not implemented.');
+}
+
