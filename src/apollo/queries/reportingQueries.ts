@@ -95,3 +95,55 @@ export const GET_INVENTORY_CHANGES_REPORT = gql`
     }
   }
 `;
+
+export const GET_ANALYTICS_SUMMARY = gql`
+  query GetAnalyticsSummary($filters: ReportFilterInput!) {
+    analyticsSummary(filters: $filters) {
+      revenueExTax
+      totalCost
+      grossProfit
+      totalDiscounts
+      totalTax
+      salesIncTax
+      salesCount
+      totalRefunds
+      totalExpenses
+      netProfit
+      byCategory {
+        id
+        name
+        grossSales
+        netSales
+        totalCost
+        totalProfit
+      }
+      bySupplier {
+        id
+        name
+        grossSales
+        netSales
+        totalCost
+        totalProfit
+      }
+    }
+  }
+`;
+
+
+export const GET_ANALYTICS_TIME_SERIES = gql`
+  query GetAnalyticsTimeSeries($filters: ReportFilterInput!, $metric: String!) {
+    analyticsTimeSeries(filters: $filters, metric: $metric) {
+      date
+      value
+    }
+  }
+`;
+
+export const GET_TIME_SERIES_REPORT = gql`
+  query GetTimeSeriesReport($filters: ReportFilterInput!, $metric: TimeSeriesMetric!) {
+    timeSeriesReport(filters: $filters, metric: $metric) {
+      date
+      value
+    }
+  }
+`;

@@ -4,6 +4,7 @@ import { ApolloProvider } from '@apollo/client';
 import { App as AntApp, ConfigProvider, theme } from 'antd';
 import client from './apollo/client';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { SettingsProvider } from './contexts/SettingsContext';
 import MainLayout from './components/layout/MainLayout';
 import ProtectedRoute from './guards/ProtectedRoute';
 import LoginPage from './features/auth/LoginPage';
@@ -34,6 +35,7 @@ import QuotationFormPage from './features/quotations/QuotationFormPage';
 import QuotationDetailPage from './features/quotations/QuotationDetailPage';
 import ReportingCenterPage from './features/reporting/ReportingCenterPage';
 import ProductAndCategoryPage from './features/products/ProductAndCategoryPage';
+import AnalyticsPage from './features/analytics/AnalyticsPage';
 
 const AppRoutes: React.FC = () => {
   const { isAuthenticated, isLoading } = useAuth();
@@ -92,7 +94,7 @@ const AppRoutes: React.FC = () => {
             <Route path="admin/audit-log" element={<AuditLogPage />} />
           </Route>
 
-          <Route path="analytics" element={<ReportingPage />} />
+          <Route path="analytics" element={<AnalyticsPage />} />
 
           {/* Catch-all */}
           <Route path="*" element={<Navigate to="/" replace />} />
@@ -113,7 +115,9 @@ function App() {
           <ApolloProvider client={client}>
             <Router>
               <AuthProvider>
+                <SettingsProvider>
                 <AppRoutes />
+                </SettingsProvider>
               </AuthProvider>
             </Router>
           </ApolloProvider>
