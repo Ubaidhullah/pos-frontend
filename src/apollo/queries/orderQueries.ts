@@ -90,6 +90,7 @@ export const GET_ORDER_DETAILS_BY_ID = gql`
       grandTotal
       amountPaid
       changeGiven
+      deliveryAddress
       # notes
       user {
         id
@@ -117,6 +118,32 @@ export const GET_ORDER_DETAILS_BY_ID = gql`
         id
         method
         amount
+      }
+      delivery {
+        id
+        deliveryNumber
+        status
+      }
+    }
+  }
+`;
+
+export const GET_ELIGIBLE_FOR_DELIVERY_ORDERS = gql`
+  query GetEligibleForDeliveryOrders(
+      $status: OrderStatus, 
+      $hasDeliveryAddress: Boolean, 
+      $isNotOnDeliveryRun: Boolean
+    ) {
+    orders(
+        status: $status, 
+        hasDeliveryAddress: $hasDeliveryAddress, 
+        isNotOnDeliveryRun: $isNotOnDeliveryRun
+    ) {
+      id
+      billNumber
+      customer {
+        id
+        name
       }
     }
   }

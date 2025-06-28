@@ -1,55 +1,71 @@
 import React, { createContext, useContext, type ReactNode } from 'react';
 import { useQuery } from '@apollo/client';
-import { Spin } from 'antd';
+import { Spin, Alert } from 'antd';
 import { GET_SETTINGS } from '../apollo/queries/settingsQueries';
+import { useAuth } from './AuthContext'; // Import the useAuth hook
 
-// Define the shape of your settings data
-// This should include all globally relevant settings
+// Define a type for your settings object for better type safety
 interface AppSettings {
-  baseCurrency: string;
   displayCurrency?: string;
-  pricesEnteredWithTax: boolean;
-  // Add other settings like loyaltyEnabled, etc., as needed
+  baseCurrency?: string;
+  pricesEnteredWithTax?: boolean;
+  // Add any other settings fields you have
 }
 
-// Create the context
-const SettingsContext = createContext<AppSettings | undefined>(undefined);
+interface SettingsContextType {
+  settings: AppSettings | null;
+  loading: boolean;
+}
 
-// Create the provider component that will wrap your app
+const SettingsContext = createContext<SettingsContextType>({
+  settings: null,
+  loading: true,
+});
+
 export const SettingsProvider = ({ children }: { children: ReactNode }) => {
-  const { data, loading, error } = useQuery<{ settings: AppSettings }>(GET_SETTINGS);
+  const { isAuthenticated, isLoading: isAuthLoading } = useAuth();
 
-  if (loading) {
+  // --- THE FIX IS HERE ---
+  // We use the `skip` option to prevent this query from running automatically.
+  // It will only run if the user is authenticated and the auth check is complete.
+  const { data, loading: settingsLoading, error } = useQuery<{ settings: AppSettings }>(GET_SETTINGS, {
+    skip: !isAuthenticated,
+  });
+
+  // The overall loading state is true if auth is still loading OR if settings are loading
+  const isLoading = isAuthLoading || (isAuthenticated && settingsLoading);
+
+  if (isLoading) {
+    // You can show a full-page loader here if desired
+    return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}><Spin size="large" tip="Loading Configuration..."/></div>;
+  }
+  
+  if (error && isAuthenticated) {
+    // If we are logged in but settings fail, show an error message.
+    // This prevents the entire application from crashing.
+    console.error("Failed to load application settings:", error);
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
-        <Spin size="large" tip="Loading Configuration..." />
-      </div>
+        <div style={{ padding: '50px' }}>
+            <Alert 
+                message="Error" 
+                description="Could not load application configuration. Please try again later." 
+                type="error" 
+                showIcon 
+            />
+        </div>
     );
   }
   
-  if (error) {
-    console.error("Failed to load application settings:", error);
-    return <div>Error: Could not load application configuration. Please try again later.</div>;
-  }
-
-  // Provide safe defaults in case settings are not yet saved in the database
-  const settings = data?.settings || {
-    baseCurrency: 'USD',
-    pricesEnteredWithTax: false,
+  const value = {
+    settings: data?.settings || null,
+    loading: isLoading,
   };
 
   return (
-    <SettingsContext.Provider value={settings}>
+    <SettingsContext.Provider value={value}>
       {children}
     </SettingsContext.Provider>
   );
 };
 
-// Create a custom hook to make it easy for components to get the settings
-export const useSettings = () => {
-  const context = useContext(SettingsContext);
-  if (context === undefined) {
-    throw new Error('useSettings must be used within a SettingsProvider');
-  }
-  return { settings: context }; // Return as { settings: ... } for consistency
-};
+export const useSettings = () => useContext(SettingsContext);

@@ -16,7 +16,6 @@ import UserListPage from './features/users/UserListPage';
 import InventoryPage from './features/inventory/InventoryPage';
 import CategoryListPage from './features/categories/CategoryListPage';
 import DashboardPage from './features/dashboard/DashboardPage';
-import ReportingPage from './features/reporting/ReportingPage';
 import SupplierListPage from './features/suppliers/SupplierListPage';
 import PurchaseOrderFormPage from './features/purchase-orders/PurchaseOrderFormPage';
 import PurchaseOrderListPage from './features/purchase-orders/PurchaseOrderListPage';
@@ -36,6 +35,8 @@ import QuotationDetailPage from './features/quotations/QuotationDetailPage';
 import ReportingCenterPage from './features/reporting/ReportingCenterPage';
 import ProductAndCategoryPage from './features/products/ProductAndCategoryPage';
 import AnalyticsPage from './features/analytics/AnalyticsPage';
+import DeliveryDahsboardPage from './features/deliveries/DeliveryDashboardPage'
+
 
 const AppRoutes: React.FC = () => {
   const { isAuthenticated, isLoading } = useAuth();
@@ -70,6 +71,7 @@ const AppRoutes: React.FC = () => {
           <Route path="quotations/new" element={<QuotationFormPage />} />
           <Route path="quotations/edit/:id" element={<QuotationFormPage />} />
           <Route path="quotations/:id" element={<QuotationDetailPage />} />
+          <Route path="deliveries" element={<DeliveryDahsboardPage />} />
           
           {/* Role Protected Routes */}
           <Route element={<ProtectedRoute allowedRoles={[Role.ADMIN, Role.MANAGER]} />}>

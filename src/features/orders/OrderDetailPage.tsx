@@ -1,5 +1,5 @@
 import React, { useRef, useState, useMemo } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery } from '@apollo/client';
 import {
   Spin,
@@ -12,30 +12,50 @@ import {
   Button,
   Row,
   Col,
-  Divider,
   Space,
   Empty,
-  Modal
+  Modal,
+  List,
+  Grid,
 } from 'antd';
-import { ArrowLeftOutlined, ExclamationCircleOutlined, PrinterOutlined, StopOutlined } from '@ant-design/icons';
+import {
+  ArrowLeftOutlined,
+  ExclamationCircleOutlined,
+  PrinterOutlined,
+  TruckOutlined,
+  StopOutlined,
+} from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useReactToPrint } from 'react-to-print';
 
 import { GET_ORDER_DETAILS_BY_ID } from '../../apollo/queries/orderQueries';
-import { OrderStatus } from '../../common/enums/order-status.enum';
-import { VOID_ORDER } from '../../apollo/mutations/orderMutations'; 
-import { useAuth } from '../../contexts/AuthContext';
-import Receipt, { type OrderDataForReceipt } from '../pos/Receipt';
-import { useAntdNotice } from '../../contexts/AntdNoticeContext';
-import { Role } from '../../common/enums/role.enum';
+import { CREATE_DELIVERY_FROM_ORDER } from '../../apollo/mutations/deliveryMutations';
+import { VOID_ORDER } from '../../apollo/mutations/orderMutations';
 import { GET_SETTINGS } from '../../apollo/queries/settingsQueries';
+import { useAuth } from '../../contexts/AuthContext';
+import { useAntdNotice } from '../../contexts/AntdNoticeContext';
+import { OrderStatus } from '../../common/enums/order-status.enum';
+import { Role } from '../../common/enums/role.enum';
+import Receipt, { type OrderDataForReceipt as ReceiptData } from '../pos/Receipt';
+import ScheduleDeliveryModal from '../deliveries/ScheduleDeliveryModal'; 
 
 const { Title, Text, Paragraph } = Typography;
-const { confirm } = Modal;
+const { useBreakpoint } = Grid;
 
 interface SettingsData {
   displayCurrency?: string;
   baseCurrency?: string;
+}
+
+interface OrderDataForReceipt extends ReceiptData {
+  id: string;
+  billNumber: string;
+  deliveryAddress?: string;
+  delivery: {
+    id: string;
+    deliveryNumber: string;
+    status: string;
+  } | null;
 }
 
 const OrderDetailPage: React.FC = () => {
@@ -43,184 +63,212 @@ const OrderDetailPage: React.FC = () => {
   const navigate = useNavigate();
   const { hasRole } = useAuth();
   const { messageApi } = useAntdNotice();
+  const screens = useBreakpoint();
+
   const [isVoidModalVisible, setIsVoidModalVisible] = useState(false);
+   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
 
-  // 2. Add the useQuery hook to fetch settings
   const { data: settingsData } = useQuery<{ settings: SettingsData }>(GET_SETTINGS);
-
   const { data, loading, error, refetch } = useQuery<{ order: OrderDataForReceipt }>(
     GET_ORDER_DETAILS_BY_ID,
     {
       variables: { id: orderId },
       fetchPolicy: 'cache-and-network',
-      onError: (err) => {
-        messageApi.error(`Error loading order: ${err.message}`);
-      }
+      onError: (err) => messageApi.error(`Error loading order: ${err.message}`),
     }
   );
-  
-  // 3. Define the currencySymbol with fallbacks
-  const currencySymbol = useMemo(() => {
-    return settingsData?.settings.displayCurrency || settingsData?.settings.baseCurrency || '$';
-  }, [settingsData]);
 
-
-  const [voidOrder, { loading: voidLoading }] = useMutation(VOID_ORDER, {
-      onCompleted: () => {
-          messageApi.success('Order has been successfully voided.');
-          refetch();
-      },
-      onError: (err) => {
-          messageApi.error(`Failed to void order: ${err.message}`);
-      }
+  const [createDelivery, { loading: deliveryLoading }] = useMutation(CREATE_DELIVERY_FROM_ORDER, {
+    onCompleted: (data) => {
+      messageApi.success(`Delivery #${data.createDeliveryFromOrder.deliveryNumber} has been scheduled!`);
+      refetch();
+    },
+    onError: (err) => {
+      messageApi.error(`Failed to schedule delivery: ${err.message}`);
+    },
   });
 
- const showVoidConfirm = () => {
-  setIsVoidModalVisible(true);
-};
+  const [voidOrder, { loading: voidLoading }] = useMutation(VOID_ORDER, {
+    onCompleted: () => {
+      messageApi.success('Order has been successfully voided.');
+      refetch();
+    },
+    onError: (err) => {
+      messageApi.error(`Failed to void order: ${err.message}`);
+    },
+  });
 
-  const receiptRef = useRef<HTMLDivElement>(null);
+ const receiptRef = useRef<HTMLDivElement>(null);
       const handlePrint = useReactToPrint({
         contentRef: receiptRef,
         documentTitle: `Receipt-${data?.order?.billNumber || 'order'}`,
         onAfterPrint: () => receiptRef.current?.focus(),
       });
-  
-  if (loading) {
-    return <div style={{ textAlign: 'center', padding: '50px' }}><Spin size="large" tip="Loading Order Details..."/></div>;
-  }
-  
-  if (error) {
+  const currencySymbol = useMemo(() => {
+    return settingsData?.settings.displayCurrency || settingsData?.settings.baseCurrency || '$';
+  }, [settingsData]);
+
+  if (loading)
+    return (
+      <div style={{ textAlign: 'center', padding: '50px' }}>
+        <Spin size="large" tip="Loading Order Details..." />
+      </div>
+    );
+  if (error)
     return (
       <div style={{ padding: '24px' }}>
         <Alert
           message="Error"
-          description="Could not load the requested order. It may not exist or you may not have permission to view it."
+          description="Could not load the requested order."
           type="error"
           showIcon
-          action={ <Button type="primary" onClick={() => navigate('/orders')}> Back to Orders List </Button> }
+          action={<Button type="primary" onClick={() => navigate('/orders')}>Back to Orders</Button>}
         />
       </div>
     );
-  }
-  
-  const order = data?.order;
 
-  if (!order) {
+  const order = data?.order;
+  if (!order)
     return (
-        <div style={{ padding: '24px' }}>
-            <Empty description="No order found with the specified ID." />
-            <div style={{textAlign: 'center', marginTop: '16px'}}>
-                 <Button type="primary" onClick={() => navigate('/orders')}> Back to Orders List </Button>
-            </div>
+      <div style={{ padding: '24px' }}>
+        <Empty description="No order found." />
+        <div style={{ textAlign: 'center', marginTop: '16px' }}>
+          <Button type="primary" onClick={() => navigate('/orders')}>
+            Back to Orders
+          </Button>
         </div>
+      </div>
     );
-  }
+
+  const canBeScheduled = hasRole([Role.ADMIN, Role.MANAGER]) && order.deliveryAddress && !order.delivery;
   const canBeVoided = hasRole([Role.ADMIN, Role.MANAGER]) && order.status === OrderStatus.COMPLETED;
 
-  const statusColors: Record<string, string> = { 
-    COMPLETED: 'green', RETURNED: 'red', PARTIALLY_RETURNED: 'orange', CANCELLED: 'gray' 
-  };
-  
-  // 4. Update the columns definitions to use the dynamic currencySymbol
   const itemColumns = [
     { title: 'Product', dataIndex: ['product', 'name'], key: 'productName' },
     { title: 'Qty', dataIndex: 'quantity', key: 'qty', align: 'center' as const },
     { title: 'Price at Sale', dataIndex: 'priceAtSale', key: 'price', align: 'right' as const, render: (val: number) => `${currencySymbol}${val.toFixed(2)}` },
-    { title: 'Discount', dataIndex: 'discountAmount', key: 'discount', align: 'right' as const, render: (val: number) => `-${currencySymbol}${val.toFixed(2)}` },
-    { title: 'Final Price', key: 'final', align: 'right' as const, render: (_: any, record: any) => `${currencySymbol}${(record.lineTotal - record.discountAmount).toFixed(2)}` },
-    { title: 'Line Total', dataIndex: 'finalLineTotal', key: 'lineTotal', align: 'right' as const, render: (val: number) => <Text strong>{currencySymbol}{val.toFixed(2)}</Text> },
+    { title: 'Line Total', dataIndex: 'lineTotal', key: 'lineTotal', align: 'right' as const, render: (val: number) => <Text strong>{currencySymbol}{val.toFixed(2)}</Text> },
   ];
-  
+
   const paymentColumns = [
-      { title: 'Method', dataIndex: 'method', key: 'method', render: (val: string) => val.replace('_', ' ') },
-      { title: 'Amount', dataIndex: 'amount', key: 'amount', align: 'right' as const, render: (val: number) => `${currencySymbol}${val.toFixed(2)}` }
+    { title: 'Method', dataIndex: 'method', key: 'method', render: (val: string) => val.replace('_', ' ') },
+    { title: 'Amount', dataIndex: 'amount', key: 'amount', align: 'right' as const, render: (val: number) => `${currencySymbol}${val.toFixed(2)}` }
   ];
 
   return (
     <>
-      <div style={{ padding: '24px' }}>
+      <div style={{ padding: screens.md ? '24px' : '12px' }}>
         <Space direction="vertical" size="large" style={{ width: '100%' }}>
-          {/* --- Header and Action Buttons --- */}
-          <Row justify="space-between" align="middle" wrap={false}>
+          <Row justify="space-between" align="middle" gutter={[16, 16]}>
             <Col>
-              <Space>
-                  <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/orders')}>Back to List</Button>
-                  <Title level={2} style={{ margin: 0 }}>Order: {order.billNumber}</Title>
+              <Space align="center" wrap>
+                <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/orders')}>
+                  Back to List
+                </Button>
+                <div>
+                  <Title level={4} style={{ margin: 0 }}>
+                    Order: {order.billNumber}
+                  </Title>
+                  <Tag color="blue">{order.delivery?.status || 'Not scheduled'}</Tag>
+                </div>
               </Space>
             </Col>
             <Col>
-            <Space wrap>
-              <Button type="primary" icon={<PrinterOutlined />} onClick={handlePrint}>
-                Print Receipt
-              </Button>
-               {canBeVoided && (
-                <Button 
-                  danger 
-                  type="primary" 
-                  icon={<StopOutlined />} 
-                  onClick={showVoidConfirm}
-                  loading={voidLoading}
-                >
-                  Void Sale
+              <Space wrap>
+                <Button icon={<PrinterOutlined />} onClick={handlePrint}>
+                  Print Receipt
                 </Button>
-              )}
+                {canBeScheduled && (
+                    <Button 
+                        type="primary" 
+                        icon={<TruckOutlined />} 
+                        onClick={() => setIsScheduleModalOpen(true)}
+                    >
+                        Schedule for Delivery
+                    </Button>
+                )}
+                {canBeVoided && (
+                  <Button
+                    danger
+                    type="primary"
+                    icon={<StopOutlined />}
+                    onClick={() => setIsVoidModalVisible(true)}
+                    loading={voidLoading}
+                  >
+                    Void Sale
+                  </Button>
+                )}
               </Space>
             </Col>
           </Row>
 
-          {/* --- Order and Customer Details --- */}
-          <Row gutter={24}>
-            <Col xs={24} md={12}>
-              <Card title="Order Details">
+          <Row gutter={[24, 24]}>
+            <Col xs={24} lg={12}>
+              <Card title="Order & Delivery Details" size="small">
                 <Descriptions bordered column={1} size="small">
-                  <Descriptions.Item label="Bill Number">{order.billNumber}</Descriptions.Item>
-                  <Descriptions.Item label="Date & Time">{dayjs(order.createdAt).format('YYYY-MM-DD HH:mm:ss')}</Descriptions.Item>
-                  <Descriptions.Item label="Cashier">{order.user?.name || order.user?.email}</Descriptions.Item>
+                  <Descriptions.Item label="Date & Time">
+                    {dayjs(order.createdAt).format('YYYY-MM-DD HH:mm:ss')}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="Cashier">
+                    {order.user?.name || order.user?.email}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="Delivery Status">
+                    {order.delivery ? (
+                      <Tag color="blue">{order.delivery.status}</Tag>
+                    ) : (
+                      <Text type="secondary">Not scheduled for delivery</Text>
+                    )}
+                  </Descriptions.Item>
                 </Descriptions>
               </Card>
             </Col>
-            <Col xs={24} md={12}>
-              <Card title="Customer Information">
+            <Col xs={24} lg={12}>
+              <Card title="Customer & Delivery Address" size="small">
                 <Descriptions bordered column={1} size="small">
-                  <Descriptions.Item label="Customer Name">{order.customer?.name || 'Walk-in Customer'}</Descriptions.Item>
+                  <Descriptions.Item label="Name">
+                    {order.customer?.name || 'Walk-in Customer'}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="Delivery Address">
+                    <Paragraph style={{ margin: 0 }} ellipsis={{ rows: 3, expandable: true, symbol: 'more' }}>
+                      {order.deliveryAddress || (
+                        <Text type="secondary">No delivery address provided.</Text>
+                      )}
+                    </Paragraph>
+                  </Descriptions.Item>
                 </Descriptions>
               </Card>
             </Col>
           </Row>
-          
-          {/* --- Items and Financial Summary --- */}
-          <Card title="Order Items & Financials">
+
+          <Card title="Items & Financials">
             <Table columns={itemColumns} dataSource={order.items} rowKey="id" pagination={false} bordered size="middle" />
-            <Row justify="end" style={{marginTop: 24}}>
-                <Col xs={24} sm={12} md={8}>
-                    {/* 5. Update the Financial Summary section */}
-                    <Card size="small" title="Financial Summary" variant="outlined">
-                        <Descriptions column={1} layout="horizontal" size="small">
-                            <Descriptions.Item label="Subtotal">{currencySymbol}{order.itemsTotal.toFixed(2)}</Descriptions.Item>
-                            <Descriptions.Item label="Discount">-{currencySymbol}{order.discountAmount.toFixed(2)}</Descriptions.Item>
-                            <Descriptions.Item label="Tax">{currencySymbol}{order.taxAmount.toFixed(2)}</Descriptions.Item>
-                            <Descriptions.Item label={<Text strong>Grand Total</Text>}><Text strong>{currencySymbol}{order.grandTotal.toFixed(2)}</Text></Descriptions.Item>
-                        </Descriptions>
-                    </Card>
-                </Col>
+            <Row justify="end" style={{ marginTop: 24 }}>
+              <Col xs={24} sm={12} md={8}>
+                <Card size="small" title="Financial Summary">
+                  <Descriptions column={1} layout="horizontal" size="small">
+                    <Descriptions.Item label="Subtotal">{currencySymbol}{order.subTotal.toFixed(2)}</Descriptions.Item>
+                    <Descriptions.Item label="Discount">-{currencySymbol}{order.discountAmount.toFixed(2)}</Descriptions.Item>
+                    <Descriptions.Item label="Tax">{currencySymbol}{order.taxAmount.toFixed(2)}</Descriptions.Item>
+                    <Descriptions.Item label={<Text strong>Grand Total</Text>}>
+                      <Text strong>{currencySymbol}{order.grandTotal.toFixed(2)}</Text>
+                    </Descriptions.Item>
+                  </Descriptions>
+                </Card>
+              </Col>
             </Row>
           </Card>
-          
-          {/* --- Payments --- */}
+
           <Card title="Payments Received">
-              <Table columns={paymentColumns} dataSource={order.payments} rowKey="id" pagination={false} size="small" bordered />
-              {/* 6. And the final payment totals */}
-              <Row justify="end" style={{marginTop: 16}}>
-                <Col>
-                    <Space direction="vertical" align="end" size="small">
-                        <Text strong>Total Paid: {currencySymbol}{order.amountPaid.toFixed(2)}</Text>
-                        <Text strong>Change Given: {currencySymbol}{order.changeGiven.toFixed(2)}</Text>
-                    </Space>
-                </Col>
-              </Row>
+            <Table columns={paymentColumns} dataSource={order.payments} rowKey="id" pagination={false} size="small" bordered scroll={{ x: 'max-content' }} />
+            <Row justify="end" style={{ marginTop: 16 }}>
+              <Col>
+                <Space direction="vertical" align="end" size="small">
+                  <Text strong>Total Paid: {currencySymbol}{order.amountPaid.toFixed(2)}</Text>
+                  <Text strong>Change Given: {currencySymbol}{order.changeGiven.toFixed(2)}</Text>
+                </Space>
+              </Col>
+            </Row>
           </Card>
-          
         </Space>
       </div>
 
@@ -233,14 +281,21 @@ const OrderDetailPage: React.FC = () => {
         }}
         onCancel={() => setIsVoidModalVisible(false)}
         okText="Yes, Void Sale"
-        cancelText="No"
         okButtonProps={{ danger: true, loading: voidLoading }}
       >
         <ExclamationCircleOutlined style={{ fontSize: 20, color: '#faad14', marginRight: 8 }} />
         This action is irreversible. All items will be returned to stock.
       </Modal>
 
-      {/* --- Hidden Component for Printing --- */}
+      <ScheduleDeliveryModal
+        open={isScheduleModalOpen}
+        onClose={() => {
+            setIsScheduleModalOpen(false);
+            refetch(); // Refetch order data when modal closes
+        }}
+        orderId={order.id}
+      />
+
       <div className="receipt-container-hidden">
         <div ref={receiptRef}>
           <Receipt order={order} />

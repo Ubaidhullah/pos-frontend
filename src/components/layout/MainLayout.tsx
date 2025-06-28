@@ -24,6 +24,7 @@ import {
   FileTextOutlined,
   LineChartOutlined,
   ContainerOutlined,
+  TruckOutlined,
 } from '@ant-design/icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { Role } from '../../common/enums/role.enum';
@@ -105,6 +106,7 @@ const MainLayout: React.FC = () => {
       navItems.push({ key: '/returns', icon: <UndoOutlined />, label: <Link to="/returns">Process Return</Link> });
       navItems.push(getItem(<Link to="/reports">Reports</Link>, '/reports', <ContainerOutlined />));
       navItems.push({ key: '/analytics', icon: <LineChartOutlined />, label: <Link to="/analytics">Analytics</Link> });
+      navItems.push({ key: '/deliveries', icon: <TruckOutlined />, label: <Link to="/deliveries">Delivery Run</Link> });
     }
 
     if (hasRole([Role.ADMIN, Role.MANAGER])) {
