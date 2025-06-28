@@ -9,26 +9,25 @@ import { onError } from '@apollo/client/link/error';
 // To handle file uploads, you must use createUploadLink from this package
 import createUploadLink from 'apollo-upload-client/createUploadLink.mjs';
 
-// This is the link that will handle file uploads
+// This is the link that will handle file uploads and regular GraphQL operations
 const uploadLink = createUploadLink({
-  // 👇 FIX: Use import.meta.env for browser-safe environment variables (Vite standard)
   uri: import.meta.env.VITE_GRAPHQL_ENDPOINT || 'http://localhost:3000/graphql',
 });
 
-// This link adds the authentication token and the CSRF prevention header to every request
+
 const authLink = setContext((_, { headers }) => {
   const token = localStorage.getItem('accessToken');
   return {
     headers: {
       ...headers,
       authorization: token ? `Bearer ${token}` : '',
-      // This header tells Apollo Server that the request is legitimate and not a CSRF attempt.
+      // This header can be useful for preventing CSRF in some setups
       'apollo-require-preflight': 'true',
     },
   };
 });
 
-// This link handles global error logging (network errors, GraphQL errors)
+// This link handles global error logging
 const errorLink = onError(({ graphQLErrors, networkError }) => {
   if (graphQLErrors)
     graphQLErrors.forEach(({ message, locations, path }) =>
@@ -40,8 +39,8 @@ const errorLink = onError(({ graphQLErrors, networkError }) => {
 });
 
 
-// We chain the links together. The request flows from right to left:
-// Request -> errorLink -> authLink -> uploadLink -> Server
+// We chain the links together using ApolloLink.from.
+// The request flows from right to left: errorLink -> authLink -> uploadLink
 const client = new ApolloClient({
   link: from([errorLink, authLink, uploadLink]),
   cache: new InMemoryCache(),
