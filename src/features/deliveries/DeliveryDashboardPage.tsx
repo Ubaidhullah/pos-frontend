@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'; // 👈 Import useEffect
+import React, { useState, useEffect } from 'react'; 
 import { useQuery, useSubscription } from '@apollo/client';
 import { Card, Col, Row, Typography, Spin, Alert, Empty, Tag, Button, Space, Dropdown } from 'antd';
 import type { MenuProps } from 'antd';
@@ -9,6 +9,7 @@ import { DELIVERY_UPDATED_SUBSCRIPTION } from '../../apollo/subscriptions/delive
 import { DeliveryStatus } from '../../common/enums/delivery-status.enum';
 import UpdateDeliveryStatusModal from './UpdateDeliveryStatusModal';
 import { useAntdNotice } from '../../contexts/AntdNoticeContext';
+import AssignDriverModal from './AssignDriverModal';
 
 const { Title, Text } = Typography;
 
@@ -20,7 +21,7 @@ interface DeliveryData {
   deliveryAddress: string;
   scheduledDate?: string;
   customer?: { name: string };
-  driver?: { name: string };
+  driver?: { id: string; name: string };
   order: { billNumber: string };
 }
 
@@ -41,11 +42,12 @@ const statusColors: Record<DeliveryStatus, string> = {
 const DeliveryDashboardPage: React.FC = () => {
     const { messageApi } = useAntdNotice();
     const { data, loading, error } = useQuery<{ deliveries: DeliveryData[] }>(GET_DELIVERIES);
+        const [driverModal, setDriverModal] = useState<{ open: boolean; deliveryId: string | null; currentDriverId?: string | null }>({ open: false, deliveryId: null });
 
-    // 👇 FIX #1: Correctly handle the subscription data payload
+
+    
     useSubscription(DELIVERY_UPDATED_SUBSCRIPTION, {
         onData: ({ client, data: subscriptionData }) => {
-            // The data is nested under 'data' and the subscription name
             const updatedDelivery = subscriptionData.data?.deliveryUpdated;
             if (updatedDelivery) {
                 messageApi.info(`Delivery #${updatedDelivery.deliveryNumber} status updated to ${updatedDelivery.status}`);
@@ -62,7 +64,12 @@ const DeliveryDashboardPage: React.FC = () => {
 
     const [statusModal, setStatusModal] = useState<{ open: boolean; delivery: DeliveryData | null }>({ open: false, delivery: null });
 
-    // 👇 FIX #2: Move the error handling into a useEffect hook
+    const getMenuItems = (delivery: DeliveryData): MenuProps['items'] => [
+        { key: 'status', label: 'Update Status' },
+        { key: 'driver', label: 'Assign Driver' },
+        { key: 'details', label: 'View Details' }
+    ];
+
     useEffect(() => {
         if (error) {
             messageApi.error(`Error loading deliveries: ${error.message}`);
@@ -95,20 +102,17 @@ const DeliveryDashboardPage: React.FC = () => {
                                                 }
                                             />
                                             <Dropdown
-                                                menu={{
-                                                    items: [
-                                                        { key: 'status', label: 'Update Status' },
-                                                        { key: 'driver', label: 'Assign Driver' }
-                                                    ],
-                                                    onClick: ({ key }) => {
-                                                        if (key === 'status') setStatusModal({ open: true, delivery });
-                                                        // Add logic for assigning driver
-                                                    }
-                                                }}
-                                                trigger={['click']}
-                                            >
-                                                <Button icon={<EllipsisOutlined />} style={{position: 'absolute', top: 16, right: 16}} />
-                                            </Dropdown>
+                                            menu={{
+                                                items: getMenuItems(delivery),
+                                                onClick: ({ key }) => {
+                                                    if (key === 'status') setStatusModal({ open: true, delivery });
+                                                    if (key === 'driver') setDriverModal({ open: true, deliveryId: delivery.id, currentDriverId: delivery.driver?.id });
+                                                }
+                                            }}
+                                            trigger={['click']}
+                                        >
+                                            <Button icon={<EllipsisOutlined />} style={{position: 'absolute', top: 16, right: 16}} />
+                                        </Dropdown>
                                         </Card>
                                     ))
                                 }
@@ -122,6 +126,13 @@ const DeliveryDashboardPage: React.FC = () => {
                 open={statusModal.open} 
                 onClose={() => setStatusModal({ open: false, delivery: null })}
                 delivery={statusModal.delivery}
+            />
+
+            <AssignDriverModal
+                open={driverModal.open}
+                onClose={() => setDriverModal({ open: false, deliveryId: null })}
+                deliveryId={driverModal.deliveryId}
+                currentDriverId={driverModal.currentDriverId}
             />
         </div>
     );

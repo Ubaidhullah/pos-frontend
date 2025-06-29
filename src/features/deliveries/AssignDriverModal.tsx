@@ -1,55 +1,41 @@
-import React from 'react';
-import { Modal, Form, Select, Button, message } from 'antd';
+import React, { useEffect } from 'react';
+import { Modal, Form, Select, Button } from 'antd';
 import { useQuery, useMutation } from '@apollo/client';
-import { GET_USERS } from '../../apollo/queries/userQueries'; // You'll need a query to get users
+import { GET_USERS_FOR_FILTER } from '../../apollo/queries/auditLogQueries';
 import { ASSIGN_DRIVER_TO_DELIVERY } from '../../apollo/mutations/deliveryMutations';
-import { GET_DELIVERY_BY_ID } from '../../apollo/queries/deliveryQueries';
+import { useAntdNotice } from '../../contexts/AntdNoticeContext';
 
 const { Option } = Select;
-
-interface UserInfo {
-  id: string;
-  name?: string;
-  email: string;
-}
 
 interface AssignDriverModalProps {
   open: boolean;
   onClose: () => void;
-  delivery: { id: string; driverId?: string | null };
+  deliveryId: string | null;
+  currentDriverId?: string | null;
 }
 
-const AssignDriverModal: React.FC<AssignDriverModalProps> = ({ open, onClose, delivery }) => {
+const AssignDriverModal: React.FC<AssignDriverModalProps> = ({ open, onClose, deliveryId, currentDriverId }) => {
   const [form] = Form.useForm();
-
-  // Fetch users who can be drivers
-  const { data: usersData, loading: usersLoading } = useQuery<{ users: UserInfo[] }>(GET_USERS, {
-    variables: { roles: ['DRIVER', 'CASHIER', 'MANAGER'] }, // Example filter
-    skip: !open, // Only run query when modal is open
-  });
-
+  const { messageApi } = useAntdNotice();
+  const { data: usersData, loading: usersLoading } = useQuery(GET_USERS_FOR_FILTER);
+  
   const [assignDriver, { loading: assignLoading }] = useMutation(ASSIGN_DRIVER_TO_DELIVERY, {
     onCompleted: () => {
-      message.success('Driver assigned successfully.');
-      onClose();
+      messageApi.success("Driver assigned successfully.");
+      onClose(); // This will trigger a refetch on the dashboard
     },
-    onError: (error) => {
-      message.error(`Failed to assign driver: ${error.message}`);
-    },
-    refetchQueries: [
-      { query: GET_DELIVERY_BY_ID, variables: { id: delivery.id } }
-    ]
+    onError: (err) => messageApi.error(err.message),
   });
 
+  useEffect(() => {
+    if (open) {
+      form.setFieldsValue({ driverId: currentDriverId });
+    }
+  }, [open, currentDriverId, form]);
+
   const handleFinish = (values: { driverId: string }) => {
-    assignDriver({
-      variables: {
-        assignDriverInput: {
-          deliveryId: delivery.id,
-          driverId: values.driverId,
-        },
-      },
-    });
+    if (!deliveryId) return;
+    assignDriver({ variables: { assignDriverInput: { deliveryId, driverId: values.driverId } } });
   };
 
   return (
@@ -58,25 +44,13 @@ const AssignDriverModal: React.FC<AssignDriverModalProps> = ({ open, onClose, de
       open={open}
       onCancel={onClose}
       confirmLoading={assignLoading}
-      footer={[
-        <Button key="back" onClick={onClose}>Cancel</Button>,
-        <Button key="submit" type="primary" loading={assignLoading} onClick={form.submit}>
-          Assign Driver
-        </Button>,
-      ]}
+      onOk={() => form.submit()}
       destroyOnClose
     >
-      <Form form={form} layout="vertical" onFinish={handleFinish} initialValues={{ driverId: delivery.driverId }}>
-        <Form.Item name="driverId" label="Select a Driver" rules={[{ required: true, message: 'Please select a driver.' }]}>
-          <Select
-            showSearch
-            loading={usersLoading}
-            placeholder="Search for a user to assign as driver"
-            filterOption={(input, option) =>
-              (option?.children as unknown as string).toLowerCase().includes(input.toLowerCase())
-            }
-          >
-            {usersData?.users.map(user => (
+      <Form form={form} layout="vertical" onFinish={handleFinish}>
+        <Form.Item name="driverId" label="Select a Driver" rules={[{ required: true }]}>
+          <Select showSearch loading={usersLoading} placeholder="Select a user to assign" allowClear>
+            {usersData?.users.map((user: any) => (
               <Option key={user.id} value={user.id}>{user.name || user.email}</Option>
             ))}
           </Select>

@@ -22,3 +22,14 @@ export const CREATE_USER = gql`
     }
   }
 `;
+
+export const GET_USERS_FOR_ASSIGNMENT = gql`
+  query GetUsersForAssignment {
+    users {
+      id
+      name
+      email
+      role
+    }
+  }
+`;
