@@ -24,3 +24,31 @@ export const GET_DELIVERIES = gql`
     }
   }
 `;
+
+export const MY_ACTIVE_DELIVERY_RUN = gql`
+  query MyActiveDeliveryRun {
+    myActiveDeliveryRun {
+      id
+      deliveryNumber
+      status
+      deliveryAddress
+      notes
+      customer {
+        id
+        name
+        phone
+      }
+      order {
+        id
+        billNumber
+        items {
+          id
+          quantity
+          product {
+            name
+          }
+        }
+      }
+    }
+  }
+`;

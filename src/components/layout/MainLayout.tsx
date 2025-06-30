@@ -107,6 +107,7 @@ const MainLayout: React.FC = () => {
       navItems.push(getItem(<Link to="/reports">Reports</Link>, '/reports', <ContainerOutlined />));
       navItems.push({ key: '/analytics', icon: <LineChartOutlined />, label: <Link to="/analytics">Analytics</Link> });
       navItems.push({ key: '/deliveries', icon: <TruckOutlined />, label: <Link to="/deliveries">Delivery Run</Link> });
+      navItems.push({ key: '/mydeliveries', icon: <TruckOutlined />, label: <Link to="/mydeliveries">My Deliveries</Link> });
     }
 
     if (hasRole([Role.ADMIN, Role.MANAGER])) {

@@ -36,6 +36,7 @@ import ReportingCenterPage from './features/reporting/ReportingCenterPage';
 import ProductAndCategoryPage from './features/products/ProductAndCategoryPage';
 import AnalyticsPage from './features/analytics/AnalyticsPage';
 import DeliveryDahsboardPage from './features/deliveries/DeliveryDashboardPage'
+import MyDeliveryRunPage from './features/deliveries/MyDeliveryRunPage';
 
 
 const AppRoutes: React.FC = () => {
@@ -72,6 +73,7 @@ const AppRoutes: React.FC = () => {
           <Route path="quotations/edit/:id" element={<QuotationFormPage />} />
           <Route path="quotations/:id" element={<QuotationDetailPage />} />
           <Route path="deliveries" element={<DeliveryDahsboardPage />} />
+          <Route path="mydeliveries" element={<MyDeliveryRunPage/>}/>
           
           {/* Role Protected Routes */}
           <Route element={<ProtectedRoute allowedRoles={[Role.ADMIN, Role.MANAGER]} />}>
