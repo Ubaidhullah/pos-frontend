@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   Modal, Form, Input, Button, message, InputNumber, Select, Row, Col, Divider, Space, Grid, Upload,
+  Alert,
 } from 'antd';
 import type { UploadFile, UploadProps } from 'antd';
 import { useQuery, useMutation } from '@apollo/client';
@@ -14,6 +15,7 @@ import { CREATE_PRODUCT, UPDATE_PRODUCT } from '../../apollo/mutations/productMu
 import { GET_PRODUCTS } from '../../apollo/queries/productQueries';
 import { useAntdNotice } from '../../contexts/AntdNoticeContext';
 import { GET_SETTINGS } from '../../apollo/queries/settingsQueries';
+import CategoryForm from '../categories/CategoryForm';
 
 
 const { Option } = Select;
@@ -73,7 +75,7 @@ const ProductFormModal: React.FC<ProductFormModalProps> = ({ open, onClose, prod
   const screens = useBreakpoint(); // Hook to get screen size info
 
   // --- GraphQL ---
-  const { data: categoriesData, loading: categoriesLoading } = useQuery<{ categories: CategoryInfo[] }>(GET_CATEGORIES);
+  const { data: categoriesData, loading: categoriesLoading, refetch: refetchCategories } = useQuery<{ categories: CategoryInfo[] }>(GET_CATEGORIES);
   const { data: taxesData, loading: taxesLoading } = useQuery<{ taxes: TaxInfo[] }>(GET_TAXES);
   const { data: settingsData } = useQuery<{ settings: SettingsInfo }>(GET_SETTINGS);
   
@@ -83,6 +85,8 @@ const ProductFormModal: React.FC<ProductFormModalProps> = ({ open, onClose, prod
   
   const isEditMode = !!productToEdit;
   const isLoading = createLoading || updateLoading;
+
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
 
   const currencySymbol = useMemo(() => {
             return settingsData?.settings.displayCurrency || settingsData?.settings.baseCurrency || '$';
@@ -159,7 +163,15 @@ const ProductFormModal: React.FC<ProductFormModalProps> = ({ open, onClose, prod
   };
   const uploadButton = (<div> {uploadLoading ? <LoadingOutlined /> : <PlusOutlined />} <div style={{ marginTop: 8 }}>Upload</div> </div>);
 
+  const handleCategoryCreateSuccess = async (newCategoryId: string) => {
+    messageApi.success('New category created!');
+    await refetchCategories(); // Refetch the list of categories
+    form.setFieldsValue({ categoryId: newCategoryId }); // Automatically select the new category
+    setIsCategoryModalOpen(false); // Close the category modal
+  };
+
   return (
+    <>
     <Modal
       title={isEditMode ? 'Edit Product' : 'Add New Product'}
       open={open}
@@ -178,26 +190,47 @@ const ProductFormModal: React.FC<ProductFormModalProps> = ({ open, onClose, prod
             </Form.Item>
           </Col>
           <Col xs={24} md={12}>
-            <Form.Item name="categoryId" label="Category" rules={[{ required: true }]}>
-              <Select loading={categoriesLoading} placeholder="Select a category">
-                {categoriesData?.categories.map(cat => <Option key={cat.id} value={cat.id}>{cat.name}</Option>)}
-              </Select>
-            </Form.Item>
-          </Col>
+              <Form.Item name="categoryId" label="Category" rules={[{ required: true }]}>
+                <Select
+                  loading={categoriesLoading}
+                  placeholder="Select a category"
+                  // --- NEW: Use dropdownRender to add a "Create" button ---
+                  dropdownRender={(menu) => (
+                    <>
+                      {menu}
+                      <Divider style={{ margin: '8px 0' }} />
+                      <Button type="link" icon={<PlusOutlined />} onClick={() => setIsCategoryModalOpen(true)}>
+                        Create New Category
+                      </Button>
+                    </>
+                  )}
+                >
+                  {categoriesData?.categories.map(cat => <Option key={cat.id} value={cat.id}>{cat.name}</Option>)}
+                </Select>
+              </Form.Item>
+            </Col>
         </Row>
         
         <Form.Item name="description" label="Description"><TextArea rows={2} /></Form.Item>
         <Divider>Pricing & Tax</Divider>
         <Row gutter={24}>
           <Col xs={24} md={12}>
-            <Form.Item name="taxIds" label="Applied Taxes">
-              <Select mode="multiple" loading={taxesLoading} placeholder="Select tax rates" allowClear>
-                {taxesData?.taxes.filter(t => t.isEnabled).map(tax => (
-                  <Option key={tax.id} value={tax.id}>{tax.name} ({tax.rate}%)</Option>
-                ))}
-              </Select>
-            </Form.Item>
-          </Col>
+              <Form.Item name="taxIds" label="Applied Taxes">
+                <Select mode="multiple" loading={taxesLoading} placeholder="Select tax rates" allowClear>
+                  {taxesData?.taxes.filter(t => t.isEnabled).map(tax => ( <Option key={tax.id} value={tax.id}>{tax.name} ({tax.rate}%)</Option>))}
+                </Select>
+                {/* --- NEW: Prompt to add taxes if none exist --- */}
+                {(taxesData?.taxes.length === 0 && !taxesLoading) && (
+                    <Alert 
+                        message="No tax rates found."
+                        description="You can add tax rates in Administration > Tax Rates."
+                        type="info"
+                        showIcon
+                        style={{ marginTop: 8 }}
+                    />
+                )}
+              </Form.Item>
+            </Col>
           <Col xs={24} md={12}>
             <Form.Item name="standardCostPrice" label="Standard Cost Price" rules={[{ required: true }]}>
                 <InputNumber addonBefore={currencySymbol} style={{ width: '100%' }} min={0} precision={2} />
@@ -268,6 +301,14 @@ const ProductFormModal: React.FC<ProductFormModalProps> = ({ open, onClose, prod
       </Form.Item>
       </Form>
     </Modal>
+    <CategoryForm
+        open={isCategoryModalOpen}
+        onClose={() => setIsCategoryModalOpen(false)}
+        onSuccess={handleCategoryCreateSuccess} // Pass the success handler
+        categoryToEdit={null} // Always for creation in this context
+      />
+    </>
+    
   );
 };
 

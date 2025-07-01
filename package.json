@@ -25,7 +25,8 @@
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-router-dom": "^7.6.1",
-    "react-to-print": "^3.1.0"
+    "react-to-print": "^3.1.0",
+    "telegraf": "^4.16.3"
   },
   "devDependencies": {
     "@eslint/js": "^9.25.0",

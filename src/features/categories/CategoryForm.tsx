@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Modal, Form, Input, Button, message, Spin } from 'antd';
+import { Modal, Form, Input, Button, message } from 'antd';
 import { useMutation } from '@apollo/client';
 import { CREATE_CATEGORY, UPDATE_CATEGORY } from '../../apollo/mutations/categoryMutations';
 import { GET_CATEGORIES } from '../../apollo/queries/categoryQueries';
@@ -15,9 +15,10 @@ interface CategoryFormProps {
   open: boolean;
   onClose: () => void;
   categoryToEdit?: CategoryToEdit | null;
+  onSuccess?: (newCategoryId: string) => void; // 👈 Add the new onSuccess prop
 }
 
-const CategoryForm: React.FC<CategoryFormProps> = ({ open, onClose, categoryToEdit }) => {
+const CategoryForm: React.FC<CategoryFormProps> = ({ open, onClose, categoryToEdit, onSuccess }) => {
   const [form] = Form.useForm<CategoryDataForForm>();
 
   const [createCategory, { loading: createLoading }] = useMutation(CREATE_CATEGORY);
@@ -42,11 +43,15 @@ const CategoryForm: React.FC<CategoryFormProps> = ({ open, onClose, categoryToEd
         });
         message.success('Category updated successfully!');
       } else {
-        await createCategory({
+        const { data } = await createCategory({
           variables: { createCategoryInput: values },
-          refetchQueries: [{ query: GET_CATEGORIES }],
+          // No refetch needed here if parent handles it
         });
         message.success('Category created successfully!');
+        // --- NEW: Call the onSuccess callback with the new ID ---
+        if (onSuccess && data?.createCategory?.id) {
+            onSuccess(data.createCategory.id);
+        }
       }
       form.resetFields();
       onClose();
@@ -72,17 +77,15 @@ const CategoryForm: React.FC<CategoryFormProps> = ({ open, onClose, categoryToEd
       ]}
       destroyOnClose
     >
-      {open && ( // Render form only when modal is open for proper state handling
-        <Form form={form} layout="vertical" name="categoryForm" onFinish={handleFinish}>
-          <Form.Item
-            name="name"
-            label="Category Name"
-            rules={[{ required: true, message: 'Please input the category name!' }]}
-          >
-            <Input />
-          </Form.Item>
-        </Form>
-      )}
+      <Form form={form} layout="vertical" name="categoryForm" onFinish={handleFinish}>
+        <Form.Item
+          name="name"
+          label="Category Name"
+          rules={[{ required: true, message: 'Please input the category name!' }]}
+        >
+          <Input />
+        </Form.Item>
+      </Form>
     </Modal>
   );
 };
