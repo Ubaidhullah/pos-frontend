@@ -19,6 +19,8 @@ export const GET_SETTINGS = gql`
       receiptFooter
       receiptHeader
       receiptShowLogo
+      allowPriceEdit
+      allowNegativeStock
     }
   }
 `;
