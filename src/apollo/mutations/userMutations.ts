@@ -33,3 +33,11 @@ export const GET_USERS_FOR_ASSIGNMENT = gql`
     }
   }
 `;
+
+export const UPDATE_USER = gql`
+  mutation UpdateUser($id: ID!, $updateUserInput: UpdateUserInput!) {
+    updateUser(id: $id, updateUserInput: $updateUserInput) {
+      id
+    }
+  }
+`;

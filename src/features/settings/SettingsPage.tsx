@@ -48,6 +48,8 @@ interface SettingsData {
   receiptShowLogo: boolean;
   receiptHeader?: string;
   receiptFooter?: string;
+  telegramApiKey?: string;
+  telegramManagerChatId?: string;
 }
 
 const SettingsPage: React.FC = () => {
@@ -191,6 +193,25 @@ const SettingsPage: React.FC = () => {
               >
                 <Input />
               </Form.Item>
+            </Card>
+            <Card title="Telegram Bot Integration" style={{ marginTop: 24 }}>
+                <Text type="secondary" style={{ display: 'block', marginBottom: 16 }}>
+                    Configure the API keys to enable order scheduling and notifications via your Telegram bot.
+                </Text>
+                <Form.Item 
+                    name="telegramApiKey" 
+                    label="Company Bot API Key"
+                    tooltip="A unique key you create to authenticate your bot for this company."
+                >
+                    <Input.Password placeholder="Enter a secure, secret key" />
+                </Form.Item>
+                <Form.Item 
+                    name="telegramManagerChatId" 
+                    label="Manager Notification Chat ID"
+                    tooltip="The Telegram Chat ID for the manager or group to receive notifications."
+                >
+                    <Input placeholder="e.g., 123456789" />
+                </Form.Item>
             </Card>
           </Col>
         </Row>

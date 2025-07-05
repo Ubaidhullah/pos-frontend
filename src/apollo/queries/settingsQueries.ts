@@ -21,6 +21,8 @@ export const GET_SETTINGS = gql`
       receiptShowLogo
       allowPriceEdit
       allowNegativeStock
+      telegramManagerChatId
+      telegramApiKey
     }
   }
 `;
