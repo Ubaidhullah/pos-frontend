@@ -24,6 +24,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { Role } from '../../common/enums/role.enum';
 import { useAntdNotice } from '../../contexts/AntdNoticeContext';
 import TextArea from 'antd/es/input/TextArea';
+// Removed incorrect Paragraph import; use Typography.Paragraph instead
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -194,24 +195,36 @@ const SettingsPage: React.FC = () => {
                 <Input />
               </Form.Item>
             </Card>
-            <Card title="Telegram Bot Integration" style={{ marginTop: 24 }}>
-                <Text type="secondary" style={{ display: 'block', marginBottom: 16 }}>
-                    Configure the API keys to enable order scheduling and notifications via your Telegram bot.
-                </Text>
-                <Form.Item 
-                    name="telegramApiKey" 
-                    label="Company Bot API Key"
-                    tooltip="A unique key you create to authenticate your bot for this company."
-                >
-                    <Input.Password placeholder="Enter a secure, secret key" />
-                </Form.Item>
-                <Form.Item 
-                    name="telegramManagerChatId" 
-                    label="Manager Notification Chat ID"
-                    tooltip="The Telegram Chat ID for the manager or group to receive notifications."
-                >
-                    <Input placeholder="e.g., 123456789" />
-                </Form.Item>
+             <Card title="Telegram Bot Integration" style={{ marginTop: 24 }}>
+              <Alert
+                type="info"
+                showIcon
+                message="How the Telegram Bot Works"
+                description={
+                  <div>
+                    <Typography.Paragraph>This feature allows you or your staff to schedule delivery orders directly through Telegram.</Typography.Paragraph>
+                    <ol>
+                      <li><strong>Company Bot API Key:</strong> Create a secret key here. Give this key to users who need to access the bot. They will use it to authenticate.</li>
+                      <li><strong>Manager Notification Chat ID:</strong> Enter the numeric chat ID of a user or group that should receive automatic summaries and notifications. (Tip: A user can find their ID by messaging the <Text code>@userinfobot</Text> on Telegram).</li>
+                    </ol>
+                  </div>
+                }
+                style={{ marginBottom: 24 }}
+              />
+              <Form.Item 
+                  name="telegramApiKey" 
+                  label="Company Bot API Key"
+                  tooltip="A unique key you create to authenticate your bot for this company."
+              >
+                  <Input.Password placeholder="Enter a secure, secret key" />
+              </Form.Item>
+              <Form.Item 
+                  name="telegramManagerChatId" 
+                  label="Manager Notification Chat ID"
+                  tooltip="The Telegram Chat ID for the manager or group to receive notifications."
+              >
+                  <Input placeholder="e.g., 123456789" />
+              </Form.Item>
             </Card>
           </Col>
         </Row>
