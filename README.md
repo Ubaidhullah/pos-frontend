@@ -10,7 +10,7 @@ The backend for this project is in a separate repository. You can find it here:
 
 ## App Preview
 
-![App Preview GIF](https://your-gif-url-here.gif)
+<img width="1463" height="797" alt="Image" src="https://github.com/user-attachments/assets/7b1a30e5-8cc6-4655-bcb3-12d9f4ce39d4" />
 
 ---
 
