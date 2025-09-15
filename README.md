@@ -22,9 +22,6 @@ The backend for this project is in a separate repository:
 | <img width="600" src="https://github.com/user-attachments/assets/49c8f86f-ebfa-47a8-8963-edd0488fc231" alt="Inventory Management" /> | <img width="600" src="https://github.com/user-attachments/assets/0bcf55e1-6e19-46a4-8d25-c514e5d87f6b" alt="Purchase Orders" /> |
 
 
-| POS Dashboard | Home |
-|--------------------|----------------|
-<img width="600" alt="Image" src="https://github.com/user-attachments/assets/49c8f86f-ebfa-47a8-8963-edd0488fc231" /> |
 
 ---
 
