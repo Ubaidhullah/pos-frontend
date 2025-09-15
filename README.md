@@ -10,8 +10,6 @@ The backend for this project is in a separate repository. You can find it here:
 
 ## App Preview
 
-*(Paste the Markdown link for your screen recording GIF here)*
-
 ![App Preview GIF](https://your-gif-url-here.gif)
 
 ---
